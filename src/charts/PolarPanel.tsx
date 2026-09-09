@@ -12,7 +12,7 @@ import { EChart } from './EChart';
 
 interface Props {
   /** x = angle, y = radius. */
-  series: SeriesSpec;
+  series: readonly SeriesSpec[];
   radialAxis: AxisSpec;
   angularAxis: AxisSpec;
   angleUnit?: AngleUnit;
@@ -21,14 +21,13 @@ interface Props {
 
 /**
  * Polar scatter that follows the shared selection. Selection *from* a polar
- * chart (sector drag) is not part of the spike; it will reuse the KDBush
- * index in (angle, radius) space once the adapter interface settles.
+ * chart (sector drag) will reuse the KDBush index in (angle, radius) space.
  */
 export function PolarPanel({ series, radialAxis, angularAxis, angleUnit, selected }: Props) {
   const option = useMemo(
     () =>
       buildPolarOption({
-        series: [series],
+        series,
         radialAxis,
         angularAxis,
         angleUnit,
@@ -38,7 +37,7 @@ export function PolarPanel({ series, radialAxis, angularAxis, angleUnit, selecte
     [series, radialAxis, angularAxis, angleUnit],
   );
   const patch = useMemo<EChartsCoreOption>(
-    () => ({ series: [polarSelectionOverlaySeries([series], selected, angleUnit)] }),
+    () => ({ series: [polarSelectionOverlaySeries(series, selected, angleUnit)] }),
     [series, selected, angleUnit],
   );
   return <EChart option={option} patch={patch} />;

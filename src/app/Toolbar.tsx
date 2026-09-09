@@ -134,8 +134,8 @@ export function Toolbar({ client }: { client: DdvClient }) {
       >
         Clear workspace
       </button>
-      <span className="spacer meta">
-        v{APP_VERSION} · <code>{client.url}</code>
+      <span className="spacer meta" title={`v${APP_VERSION} · ${client.url}`}>
+        v{APP_VERSION}
       </span>
     </header>
   );

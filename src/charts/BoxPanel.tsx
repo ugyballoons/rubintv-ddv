@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  buildHistogramOption,
+  buildBoxOption,
   clickBin,
-  computeHistogramBins,
+  computeBoxBins,
   emptyBinSelection,
   navigateBins,
   selectedBinsOf,
@@ -13,63 +13,62 @@ import {
 import { EChart } from './EChart';
 import type { EChartsInstance } from './echarts';
 
-export interface HistogramSeries {
+export interface BoxSeries {
   readonly id: string;
   readonly name: string;
-  readonly values: Float64Array;
+  readonly main: Float64Array;
+  readonly cross: Float64Array;
   readonly dataIds: readonly DataIdKey[];
   readonly color: string;
 }
 
 interface Props {
-  series: readonly HistogramSeries[];
+  series: readonly BoxSeries[];
   mainAxis: AxisSpec;
+  crossAxis: AxisSpec;
   nBins: number;
   onSelect(ids: ReadonlySet<DataIdKey>, committed: boolean): void;
-  onInfo?(msg: string): void;
 }
 
-/**
- * Histogram with the Flutter bin-selection semantics: click, cmd/ctrl-click
- * toggle, shift-click range, arrow keys with wrap-around, shift+arrow extend.
- * The state machine lives in rubin-charts; this component maps mouse and key
- * events to it and resolves selected bins to DataIds for the shared selection.
- */
-export function HistogramPanel({ series, mainAxis, nBins, onSelect, onInfo }: Props) {
+/** Binned box chart with the same bin-selection semantics as the histogram. */
+export function BoxPanel({ series, mainAxis, crossAxis, nBins, onSelect }: Props) {
   const chart = useRef<EChartsInstance | null>(null);
-  const [binSel, setBinSel] = useState<BinSelectionState>(emptyBinSelection);
   const host = useRef<HTMLDivElement>(null);
+  const [binSel, setBinSel] = useState<BinSelectionState>(emptyBinSelection);
 
   const input = useMemo(
     () => ({
-      series: series.map((s) => ({ id: s.id, name: s.name, values: s.values, color: s.color })),
+      series: series.map((s) => ({
+        id: s.id,
+        name: s.name,
+        main: s.main,
+        cross: s.cross,
+        color: s.color,
+      })),
       mainAxis,
+      crossAxis,
       nBins,
     }),
-    [series, mainAxis, nBins],
+    [series, mainAxis, crossAxis, nBins],
   );
-  const bins = useMemo(() => computeHistogramBins({ ...input, selected: new Map() }), [input]);
+  const bins = useMemo(() => computeBoxBins({ ...input, selected: new Map() }), [input]);
   const option = useMemo(
-    () => buildHistogramOption({ ...input, selected: binSel.selected }, bins),
+    () => buildBoxOption({ ...input, selected: binSel.selected }, bins),
     [input, bins, binSel],
   );
 
-  // Resolve the selected bins to DataIds whenever the bin selection changes.
   const lastEmitted = useRef<BinSelectionState>(emptyBinSelection);
   useEffect(() => {
     if (lastEmitted.current === binSel) return;
     lastEmitted.current = binSel;
     const ids = new Set<DataIdKey>();
-    const labels: string[] = [];
     for (const s of series) {
-      const members = bins.perSeries.get(s.id)?.members ?? [];
-      const sel = selectedBinsOf(binSel, s.id);
-      for (const b of sel) for (const i of members[b] ?? []) ids.add(s.dataIds[i]);
-      if (sel.length) labels.push(`${s.name}: ${sel.join(',')}`);
+      const members = bins.members.get(s.id) ?? [];
+      for (const b of selectedBinsOf(binSel, s.id))
+        for (const i of members[b] ?? []) ids.add(s.dataIds[i]);
     }
     onSelect(ids, true);
-    onInfo?.(`${labels.join(' · ') || 'no bins'} → ${ids.size.toLocaleString()} rows`);
-  }, [binSel, bins, series, onSelect, onInfo]);
+  }, [binSel, bins, series, onSelect]);
 
   const binAtPixel = useCallback(
     (px: number, py: number): { series: string; bin: number } | null => {
@@ -78,18 +77,18 @@ export function HistogramPanel({ series, mainAxis, nBins, onSelect, onInfo }: Pr
       const vertical = mainAxis.location === 'bottom' || mainAxis.location === 'top';
       const [dx, dy] = c.convertFromPixel({ xAxisIndex: 0, yAxisIndex: 0 }, [px, py]) as number[];
       const v = vertical ? dx : dy;
-      const count = vertical ? dy : dx;
       const edges = bins.edges;
-      if (!(v >= edges[0] && v <= edges[edges.length - 1]) || count < 0) return null;
+      if (!(v >= edges[0] && v <= edges[edges.length - 1])) return null;
       let b = edges.findIndex((e, i) => i < edges.length - 1 && v >= e && v < edges[i + 1]);
       if (b < 0) b = edges.length - 2;
-      // Series are drawn in order, so the last one whose bar reaches the point is on top.
-      let hit: { series: string; bin: number } | null = null;
-      for (const s of series) {
-        const counts = bins.perSeries.get(s.id)?.counts;
-        if (counts && count <= counts[b]) hit = { series: s.id, bin: b };
-      }
-      return hit;
+      // Series share a bin side by side; pick by position within the bin.
+      const frac = (v - edges[b]) / (edges[b + 1] - edges[b]);
+      const k = Math.min(
+        series.length - 1,
+        Math.max(0, Math.floor(((frac - 0.1) / 0.8) * series.length)),
+      );
+      const s = series[k];
+      return s && bins.perSeries.get(s.id)?.[b] ? { series: s.id, bin: b } : null;
     },
     [bins, mainAxis.location, series],
   );
@@ -100,9 +99,11 @@ export function HistogramPanel({ series, mainAxis, nBins, onSelect, onInfo }: Pr
       c.getZr().on('click', (e) => {
         host.current?.focus();
         const raw = e.event as MouseEvent;
-        const bin = binAtPixel(e.offsetX, e.offsetY);
         setBinSel((s) =>
-          clickBin(s, bin, { shift: raw.shiftKey, cmdCtrl: raw.metaKey || raw.ctrlKey }),
+          clickBin(s, binAtPixel(e.offsetX, e.offsetY), {
+            shift: raw.shiftKey,
+            cmdCtrl: raw.metaKey || raw.ctrlKey,
+          }),
         );
       });
     },
@@ -112,8 +113,9 @@ export function HistogramPanel({ series, mainAxis, nBins, onSelect, onInfo }: Pr
   const onKeyDown = (e: React.KeyboardEvent) => {
     if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
     e.preventDefault();
-    const key = e.key === 'ArrowLeft' ? 'left' : 'right';
-    setBinSel((s) => navigateBins(s, key, nBins, { shift: e.shiftKey }));
+    setBinSel((s) =>
+      navigateBins(s, e.key === 'ArrowLeft' ? 'left' : 'right', nBins, { shift: e.shiftKey }),
+    );
   };
 
   return (
@@ -121,7 +123,7 @@ export function HistogramPanel({ series, mainAxis, nBins, onSelect, onInfo }: Pr
       ref={host}
       tabIndex={0}
       onKeyDown={onKeyDown}
-      aria-label={`histogram of ${series.map((s) => s.name).join(', ')}`}
+      aria-label={`box chart of ${series.map((s) => s.name).join(', ')}`}
       style={{ width: '100%', height: '100%', outline: 'none' }}
     >
       <EChart option={option} onReady={onReady} />

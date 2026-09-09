@@ -13,7 +13,7 @@ import { EChart } from './EChart';
 import type { EChartsInstance } from './echarts';
 
 interface Props {
-  series: SeriesSpec;
+  series: readonly SeriesSpec[];
   xAxis: AxisSpec;
   yAxis: AxisSpec;
   selected: ReadonlySet<DataIdKey>;
@@ -40,21 +40,23 @@ export function ScatterPanel({ series, xAxis, yAxis, selected, onSelect, onTimin
   const [rect, setRect] = useState<Rect | null>(null);
 
   const option = useMemo(
-    () =>
-      buildScatterOption({ series: [series], xAxis, yAxis, selected: new Set(), drillDown: null }),
+    () => buildScatterOption({ series, xAxis, yAxis, selected: new Set(), drillDown: null }),
     [series, xAxis, yAxis],
   );
   const patch = useMemo<EChartsCoreOption>(
-    () => ({ series: [selectionOverlaySeries([series], selected)] }),
+    () => ({ series: [selectionOverlaySeries(series, selected)] }),
     [series, selected],
   );
-  const index = useMemo(
+  const indexes = useMemo(
     () =>
-      new PointIndex(
-        series.x as Float64Array,
-        series.y,
-        mappingFor(xAxis.mapping),
-        mappingFor(yAxis.mapping),
+      series.map(
+        (s) =>
+          new PointIndex(
+            s.x as Float64Array,
+            s.y,
+            mappingFor(xAxis.mapping),
+            mappingFor(yAxis.mapping),
+          ),
       ),
     [series, xAxis.mapping, yAxis.mapping],
   );
@@ -72,15 +74,18 @@ export function ScatterPanel({ series, xAxis, yAxis, selected, onSelect, onTimin
         r.x1,
         r.y1,
       ]) as number[];
-      const hits = index.rangeInData(ax, ay, bx, by);
       const ids = new Set<DataIdKey>();
-      for (const i of hits) ids.add(series.dataIds[i]);
+      let total = 0;
+      indexes.forEach((index, k) => {
+        total += series[k].dataIds.length;
+        for (const i of index.rangeInData(ax, ay, bx, by)) ids.add(series[k].dataIds[i]);
+      });
       onSelect(ids, committed);
       onTiming?.(
-        `${committed ? 'selected' : 'preview'} ${ids.size} of ${series.dataIds.length} in ${(performance.now() - t0).toFixed(1)} ms`,
+        `${committed ? 'selected' : 'preview'} ${ids.size} of ${total} in ${(performance.now() - t0).toFixed(1)} ms`,
       );
     },
-    [index, series, onSelect, onTiming],
+    [indexes, series, onSelect, onTiming],
   );
 
   const onReady = useCallback(

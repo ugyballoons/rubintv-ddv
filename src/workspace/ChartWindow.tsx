@@ -1,4 +1,4 @@
-import { useCallback, useMemo } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import type { AxisLocation, AxisSpec, DataIdKey, SeriesSpec } from 'rubin-charts';
 import type { DdvClient } from '../protocol/client';
 import {
@@ -10,62 +10,67 @@ import {
   type WindowMeta,
 } from '../model/workspace';
 import { useWorkspace } from '../store/workspace';
-import { useSeriesData, idleEntry } from '../store/seriesData';
+import { useSeriesData, idleEntry, type SeriesEntry } from '../store/seriesData';
 import { useSelection, effectiveSelection } from '../store/selection';
-import { useSeriesLoader, confirmLoad, cancelLoad } from '../hooks/useSeriesLoader';
+import { useSeriesLoader, confirmLoad, cancelLoad, dropLoad } from '../hooks/useSeriesLoader';
 import { ScatterPanel } from '../charts/ScatterPanel';
 import { HistogramPanel } from '../charts/HistogramPanel';
 import { PolarPanel } from '../charts/PolarPanel';
+import { BoxPanel } from '../charts/BoxPanel';
+import { SeriesEditor } from './SeriesEditor';
 
 export function ChartWindow({ window: w, client }: { window: WindowMeta; client: DdvClient }) {
   const chart = w.chart!;
   const instrument = useWorkspace((s) => s.instrument);
   const updateChart = useWorkspace((s) => s.updateChart);
-  const numeric = useMemo(
-    () => instrument?.tables.flatMap((t) => t.columns.filter((c) => c.kind === 'number')) ?? [],
-    [instrument],
-  );
+  const removeData = useSeriesData((s) => s.remove);
+  const [editing, setEditing] = useState<{ series: SeriesConfig; isNew: boolean } | null>(null);
 
-  const addSeries = () => {
-    if (!instrument?.database || numeric.length === 0) return;
+  const newSeries = (): SeriesConfig | null => {
+    if (!instrument?.database) return null;
+    const numeric = instrument.tables
+      .filter((t) => !/^ccd/.test(t.name))
+      .flatMap((t) => t.columns.filter((c) => c.kind === 'number'));
     const fields: Partial<Record<AxisLocation, ColumnRef>> = {};
     chart.axes.forEach((a, i) => {
       const c = numeric[Math.min(i, numeric.length - 1)];
-      fields[a.location] = { name: c.name, schema: c.table, database: instrument.database! };
+      if (c) fields[a.location] = { name: c.name, schema: c.table, database: instrument.database! };
     });
     // Flutter series ids are "<windowId>-<n>"; keep that so saved files interoperate.
     const taken = new Set(chart.series.map((s) => s.id));
     let n = chart.series.length + 1;
     while (taken.has(`${w.id}-${n}`)) n++;
-    const series: SeriesConfig = {
+    return {
       id: `${w.id}-${n}`,
-      name: `Series ${chart.series.length + 1}`,
+      name: `Series ${n}`,
       fields,
       marker: { color: SERIES_COLORS[chart.series.length % SERIES_COLORS.length], size: 4 },
       query: null,
     };
-    updateChart(w.id, (c) => ({
-      ...c,
-      series: [...c.series, series],
-      axes: c.axes.map((a) =>
-        isPlaceholderLabel(a.label) && fields[a.location]
-          ? { ...a, label: columnRefId(fields[a.location]!) }
-          : a,
-      ),
-    }));
   };
 
-  const setField = (seriesId: string, location: AxisLocation, id: string) => {
-    const col = numeric.find((c) => c.id === id);
-    if (!col || !instrument?.database) return;
-    const ref: ColumnRef = { name: col.name, schema: col.table, database: instrument.database };
-    updateChart(w.id, (c) => ({
-      ...c,
-      series: c.series.map((s) =>
-        s.id === seriesId ? { ...s, fields: { ...s.fields, [location]: ref } } : s,
-      ),
-      axes: c.axes.map((a) => (a.location === location ? { ...a, label: columnRefId(ref) } : a)),
-    }));
+  const commitSeries = (s: SeriesConfig) => {
+    updateChart(w.id, (c) => {
+      const exists = c.series.some((x) => x.id === s.id);
+      return {
+        ...c,
+        series: exists ? c.series.map((x) => (x.id === s.id ? s : x)) : [...c.series, s],
+        // Placeholder axis labels take the field name the first time a series is committed.
+        axes: c.axes.map((a) =>
+          isPlaceholderLabel(a.label) && s.fields[a.location]
+            ? { ...a, label: columnRefId(s.fields[a.location]!) }
+            : a,
+        ),
+      };
+    });
+    setEditing(null);
+  };
+
+  const deleteSeries = (id: string) => {
+    dropLoad(id);
+    removeData(id);
+    updateChart(w.id, (c) => ({ ...c, series: c.series.filter((x) => x.id !== id) }));
+    setEditing(null);
   };
 
   const toggleAxis = (location: AxisLocation, key: 'inverted' | 'mapping') =>
@@ -83,36 +88,29 @@ export function ChartWindow({ window: w, client }: { window: WindowMeta; client:
   return (
     <>
       <div className="window-toolbar">
-        <button onClick={addSeries} disabled={!instrument?.database} title="Add a series">
+        <button
+          onClick={() => {
+            const s = newSeries();
+            if (s) setEditing({ series: s, isNew: true });
+          }}
+          disabled={!instrument?.database}
+          title="Add a series"
+        >
           + series
         </button>
-        {chart.series.map((s) => (
-          <span key={s.id} style={{ display: 'inline-flex', gap: 4, alignItems: 'center' }}>
-            <span
-              style={{
-                width: 10,
-                height: 10,
-                borderRadius: 5,
-                background: s.marker.color,
-                display: 'inline-block',
-              }}
-            />
-            {chart.axes.map((a) => (
-              <select
-                key={a.location}
-                aria-label={`${s.name} ${a.location}`}
-                value={s.fields[a.location] ? columnRefId(s.fields[a.location]!) : ''}
-                onChange={(e) => setField(s.id, a.location, e.target.value)}
-              >
-                {numeric.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.id}
-                  </option>
-                ))}
-              </select>
-            ))}
-          </span>
-        ))}
+        <span className="legend" aria-label="series legend">
+          {chart.series.map((s) => (
+            <button
+              key={s.id}
+              onClick={() => setEditing({ series: s, isNew: false })}
+              title={`Edit ${s.name}`}
+            >
+              <span className="swatch" style={{ background: s.marker.color }} />
+              {s.name}
+              {s.query && <span className="meta">⧩</span>}
+            </button>
+          ))}
+        </span>
         {chart.axes.map((a) => (
           <label key={a.location} title={`${a.location} axis`}>
             <input
@@ -133,7 +131,7 @@ export function ChartWindow({ window: w, client }: { window: WindowMeta; client:
             )}
           </label>
         ))}
-        {w.type === 'histogram' && (
+        {(w.type === 'histogram' || w.type === 'box') && (
           <label>
             bins
             <input
@@ -158,44 +156,90 @@ export function ChartWindow({ window: w, client }: { window: WindowMeta; client:
         </label>
       </div>
       <div className="window-body">
+        {chart.series.map((s) => (
+          <SeriesLoader
+            key={s.id}
+            client={client}
+            series={s}
+            useGlobalQuery={chart.useGlobalQuery}
+          />
+        ))}
         {chart.series.length === 0 ? (
           <div className="centered-note">Add a series to plot.</div>
         ) : (
-          <SeriesChart window={w} client={client} />
+          <SeriesChart window={w} />
         )}
       </div>
-      {chart.series.length > 0 && <WindowStatus seriesId={chart.series[0].id} />}
+      {chart.series.length > 0 && <WindowStatus seriesIds={chart.series.map((s) => s.id)} />}
+      {editing && instrument && (
+        <SeriesEditor
+          instrument={instrument}
+          axes={chart.axes}
+          series={editing.series}
+          isNew={editing.isNew}
+          onCancel={() => setEditing(null)}
+          onAccept={commitSeries}
+          onDelete={() => deleteSeries(editing.series.id)}
+        />
+      )}
     </>
   );
 }
 
-function WindowStatus({ seriesId }: { seriesId: string }) {
-  const entry = useSeriesData((s) => s.entries[seriesId] ?? idleEntry);
-  const text =
-    entry.status === 'ready'
-      ? `${entry.data!.rowCount.toLocaleString()} rows`
-      : entry.status === 'error'
-        ? entry.error
-        : entry.status === 'confirm'
-          ? `${entry.pendingRows?.toLocaleString()} rows, awaiting confirmation`
-          : `${entry.status}…`;
+/** Renders nothing; keeps one series' data loaded. One per series so hooks stay unconditional. */
+function SeriesLoader({
+  client,
+  series,
+  useGlobalQuery,
+}: {
+  client: DdvClient;
+  series: SeriesConfig;
+  useGlobalQuery: boolean;
+}) {
+  useSeriesLoader(client, series, useGlobalQuery);
+  return null;
+}
+
+function WindowStatus({ seriesIds }: { seriesIds: string[] }) {
+  const entries = useSeriesData((s) => s.entries);
+  const parts = seriesIds.map((id) => {
+    const e = entries[id] ?? idleEntry;
+    return e.status === 'ready'
+      ? `${e.data!.rowCount.toLocaleString()} rows`
+      : e.status === 'error'
+        ? e.error
+        : e.status === 'confirm'
+          ? `${e.pendingRows?.toLocaleString()} rows, awaiting confirmation`
+          : `${e.status}…`;
+  });
+  const hasError = seriesIds.some((id) => entries[id]?.status === 'error');
   return (
     <div className="window-status" data-testid="chart-status">
-      <span className={entry.status === 'error' ? 'error' : undefined}>{text}</span>
+      <span className={hasError ? 'error' : undefined}>{parts.join(' · ')}</span>
     </div>
   );
 }
 
-/** Loads the first series (multi-series rendering comes with the series editor) and renders the panel for the window type. */
-function SeriesChart({ window: w, client }: { window: WindowMeta; client: DdvClient }) {
+const EMPTY_ENTRIES: Record<string, SeriesEntry> = {};
+
+/** Returns the previous array while its elements are shallow-equal, so it can be a single memo dependency. */
+function useStableArray<T>(next: readonly T[]): readonly T[] {
+  const ref = useRef<readonly T[]>(next);
+  const prev = ref.current;
+  const same = prev.length === next.length && prev.every((v, i) => v === next[i]);
+  if (!same) ref.current = next;
+  return same ? prev : next;
+}
+
+/** Renders the panel for the window type with every series whose data is ready. */
+function SeriesChart({ window: w }: { window: WindowMeta }) {
   const chart = w.chart!;
-  const series = chart.series[0];
-  useSeriesLoader(client, series, chart.useGlobalQuery);
-  const entry = useSeriesData((s) => s.entries[series.id] ?? idleEntry);
+  const ids = chart.series.map((s) => s.id);
+  const entries = useSeriesData((s) => s.entries) ?? EMPTY_ENTRIES;
   const selected = useSelection(effectiveSelection);
   const setSelection = useSelection((s) => s.setSelection);
   const onSelect = useCallback(
-    (ids: ReadonlySet<DataIdKey>, committed: boolean) => setSelection(ids, committed, w.id),
+    (sel: ReadonlySet<DataIdKey>, committed: boolean) => setSelection(sel, committed, w.id),
     [setSelection, w.id],
   );
 
@@ -214,56 +258,62 @@ function SeriesChart({ window: w, client }: { window: WindowMeta; client: DdvCli
     return out;
   }, [chart.axes]);
   const axisSpec = (location: AxisLocation): AxisSpec => axisSpecs[location];
-  const column = (location: AxisLocation) => {
-    const ref = series.fields[location];
-    return ref ? entry.data?.columns[columnRefId(ref)] : undefined;
-  };
 
-  const spec = useMemo<SeriesSpec | null>(() => {
-    if (!entry.data) return null;
+  // One dependency that changes only when a series' ready data changes.
+  const readyData = useStableArray(
+    ids.map((id) => (entries[id]?.status === 'ready' ? entries[id].data : null)),
+  );
+  const specs = useMemo<SeriesSpec[]>(() => {
+    const out: SeriesSpec[] = [];
     const [ax, ay] =
       w.type === 'histogram' ? ['bottom', 'bottom'] : chart.axes.map((a) => a.location);
-    const x = column(ax as AxisLocation);
-    const y = column(ay as AxisLocation);
-    if (!(x instanceof Float64Array) || !(y instanceof Float64Array)) return null;
-    return {
-      id: series.id,
-      name: series.name,
-      x,
-      y,
-      dataIds: entry.data.dataIds,
-      marker: series.marker,
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [entry.data, series, chart.axes, w.type]);
+    chart.series.forEach((s, k) => {
+      const data = readyData[k];
+      if (!data) return;
+      const col = (loc: AxisLocation) => {
+        const ref = s.fields[loc];
+        return ref ? data.columns[columnRefId(ref)] : undefined;
+      };
+      const x = col(ax as AxisLocation);
+      const y = col(ay as AxisLocation);
+      if (!(x instanceof Float64Array) || !(y instanceof Float64Array)) return;
+      out.push({ id: s.id, name: s.name, x, y, dataIds: data.dataIds, marker: s.marker });
+    });
+    return out;
+  }, [chart.series, chart.axes, w.type, readyData]);
 
-  if (entry.status === 'confirm') {
+  const confirming = chart.series.find((s) => entries[s.id]?.status === 'confirm');
+  if (confirming) {
+    const e = entries[confirming.id];
     return (
       <div className="confirm" role="dialog" aria-label="Large dataset warning">
         <div>
           <b>Large dataset</b>
-          <p>This series has {entry.pendingRows?.toLocaleString()} rows. Load it anyway?</p>
+          <p>
+            {confirming.name} has {e.pendingRows?.toLocaleString()} rows. Load it anyway?
+          </p>
           <div className="buttons">
-            <button onClick={() => cancelLoad(series.id)}>Cancel</button>
-            <button onClick={() => confirmLoad(series.id)}>Continue</button>
+            <button onClick={() => cancelLoad(confirming.id)}>Cancel</button>
+            <button onClick={() => confirmLoad(confirming.id)}>Continue</button>
           </div>
         </div>
       </div>
     );
   }
-  if (entry.status === 'error') return <div className="centered-note error">{entry.error}</div>;
-  if (!spec)
+  if (specs.length === 0) {
+    const first = entries[ids[0]];
     return (
       <div className="centered-note">
-        {entry.status === 'idle' ? 'Waiting for data…' : `${entry.status}…`}
+        {first?.status === 'error' ? first.error : 'Waiting for data…'}
       </div>
     );
+  }
 
   switch (w.type) {
     case 'cartesianScatter':
       return (
         <ScatterPanel
-          series={spec}
+          series={specs}
           xAxis={axisSpec('bottom')}
           yAxis={axisSpec('left')}
           selected={selected}
@@ -273,7 +323,7 @@ function SeriesChart({ window: w, client }: { window: WindowMeta; client: DdvCli
     case 'polarScatter':
       return (
         <PolarPanel
-          series={spec}
+          series={specs}
           radialAxis={axisSpec('radial')}
           angularAxis={axisSpec('angular')}
           selected={selected}
@@ -282,14 +332,31 @@ function SeriesChart({ window: w, client }: { window: WindowMeta; client: DdvCli
     case 'histogram':
       return (
         <HistogramPanel
-          series={{
-            id: series.id,
-            name: series.name,
-            values: spec.x as Float64Array,
-            dataIds: spec.dataIds,
-            color: series.marker.color,
-          }}
+          series={specs.map((s) => ({
+            id: s.id,
+            name: s.name,
+            values: s.x as Float64Array,
+            dataIds: s.dataIds,
+            color: s.marker.color,
+          }))}
           mainAxis={axisSpec('bottom')}
+          nBins={chart.nBins}
+          onSelect={onSelect}
+        />
+      );
+    case 'box':
+      return (
+        <BoxPanel
+          series={specs.map((s) => ({
+            id: s.id,
+            name: s.name,
+            main: s.x as Float64Array,
+            cross: s.y,
+            dataIds: s.dataIds,
+            color: s.marker.color,
+          }))}
+          mainAxis={axisSpec('bottom')}
+          crossAxis={axisSpec('left')}
           nBins={chart.nBins}
           onSelect={onSelect}
         />
