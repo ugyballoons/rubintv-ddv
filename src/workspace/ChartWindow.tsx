@@ -164,7 +164,25 @@ export function ChartWindow({ window: w, client }: { window: WindowMeta; client:
           <SeriesChart window={w} client={client} />
         )}
       </div>
+      {chart.series.length > 0 && <WindowStatus seriesId={chart.series[0].id} />}
     </>
+  );
+}
+
+function WindowStatus({ seriesId }: { seriesId: string }) {
+  const entry = useSeriesData((s) => s.entries[seriesId] ?? idleEntry);
+  const text =
+    entry.status === 'ready'
+      ? `${entry.data!.rowCount.toLocaleString()} rows`
+      : entry.status === 'error'
+        ? entry.error
+        : entry.status === 'confirm'
+          ? `${entry.pendingRows?.toLocaleString()} rows, awaiting confirmation`
+          : `${entry.status}…`;
+  return (
+    <div className="window-status" data-testid="chart-status">
+      <span className={entry.status === 'error' ? 'error' : undefined}>{text}</span>
+    </div>
   );
 }
 

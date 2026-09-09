@@ -75,7 +75,10 @@ def populate_synthetic(schema: dict, db_filename: str, n_rows: int, seed: int) -
     night_index = (ids - 1) // per_night
     seq_num = (ids - 1) % per_night
     night_mjd = first_night.mjd + night_index
-    day_obs = [Time(m, format="mjd").strftime("%Y-%m-%d") for m in np.unique(night_mjd)]
+    # consdb stores day_obs as an int YYYYMMDD; the service filters on that int. The
+    # schema declares it as a date (TEXT in sqlite), and sqlite's TEXT affinity makes
+    # `day_obs = 20251103` still match a stored "20251103".
+    day_obs = [int(Time(m, format="mjd").strftime("%Y%m%d")) for m in np.unique(night_mjd)]
     day_obs_col = [day_obs[i] for i in night_index]
     # Start times: one exposure every ~40 s through the night, with jitter
     obs_start_mjd = night_mjd + (seq_num * 40.0 + rng.normal(0, 3, n_rows)) / 86400.0 + 0.05
