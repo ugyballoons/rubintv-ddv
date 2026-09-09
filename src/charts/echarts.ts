@@ -1,5 +1,5 @@
 import * as echarts from 'echarts/core';
-import { ScatterChart } from 'echarts/charts';
+import { CustomChart, ScatterChart } from 'echarts/charts';
 import {
   DatasetComponent,
   DataZoomComponent,
@@ -11,6 +11,7 @@ import { CanvasRenderer } from 'echarts/renderers';
 
 echarts.use([
   ScatterChart,
+  CustomChart,
   GridComponent,
   DatasetComponent,
   DataZoomComponent,
