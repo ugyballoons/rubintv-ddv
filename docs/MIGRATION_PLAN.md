@@ -344,6 +344,14 @@ Effort figures assume one engineer full time and are ranges, not commitments.
 Total: roughly 10–15 weeks. Phases 3 and 4 can run in parallel with the tail of
 phase 2 if a second person is available.
 
+### 5.1 Progress log
+
+| Date       | Phase | Done                                                                                                                                                                                                                                                                       |
+| ---------- | ----- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 2026-09-09 | 0     | Spike complete on ECharts (see §3.3.1).                                                                                                                                                                                                                                    |
+| 2026-09-09 | 1     | Stores, window manager (react-rnd), chart windows, toolbar, Flutter-compatible workspace load/save verified against a real LSSTCam file, per-window status.                                                                                                                |
+| 2026-09-09 | 2     | Query model and editor (global and per-series), multiple series per chart, series editor and legend, box chart, drill-down channel with Escape reset, axis editor. Remaining from phase 2: polar sector selection, histogram partial-bin highlighting, preview throttling. |
+
 ## 6. Backend and protocol changes to make alongside
 
 Small, and all backwards compatible with the Flutter client:
