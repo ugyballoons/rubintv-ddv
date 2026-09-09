@@ -19,6 +19,24 @@ npm run dev
 npm test
 ```
 
+### Local loop without a real consdb
+
+With `rubintv_analysis_service` checked out beside this repo and its conda
+environment active:
+
+```
+# 1. the broker (in rubintv_analysis_service)
+python scripts/mock_server.py -p 9926
+
+# 2. a worker backed by the service's sqlite test database (here)
+python scripts/dev_worker.py -p 9926
+
+# 3. the app, with .env containing VITE_DDV_WS_PATH=ws and VITE_DDV_WS_PORT=9926
+npm run dev
+```
+
+Open http://127.0.0.1:5173/rubintv/ddv/ and choose the `testdb` instrument.
+
 The build lands in `dist/` and is meant to be mounted by RubinTV at `{prefix}/ddv`,
 exactly where the Flutter build is served today. Set `VITE_BASE` to change the mount path.
 
