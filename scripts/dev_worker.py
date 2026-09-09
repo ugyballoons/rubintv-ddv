@@ -16,6 +16,7 @@ Select the instrument "testdb" in the app.
 from __future__ import annotations
 
 import argparse
+import json
 import logging
 import os
 import pathlib
@@ -50,7 +51,48 @@ def _shim_afw_if_missing() -> None:
     logging.getLogger(__name__).warning("lsst.afw not installed; stubbed lsst.afw.cameraGeom for testdb")
 
 
-def populate_synthetic(schema: dict, db_filename: str, n_rows: int, seed: int) -> None:
+def insert_ccd_rows(cursor, table: dict, detectors: list[dict], n_exposures: int, rng) -> None:
+    """One row per (exposure, detector): a smooth radial pattern over the focal plane plus
+    per-exposure seeing and per-detector offsets, so the focal-plane chart has structure."""
+    if not detectors or n_exposures == 0:
+        return
+    centres = []
+    for d in detectors:
+        xs = [c[0] for c in d["corners"]]
+        ys = [c[1] for c in d["corners"]]
+        centres.append((d["id"], (min(xs) + max(xs)) / 2, (min(ys) + max(ys)) / 2))
+    r_max = max((cx * cx + cy * cy) ** 0.5 for _, cx, cy in centres) or 1.0
+    det_offset = {did: rng.normal(0, 0.05) for did, _, _ in centres}
+    rows = []
+    ccd_id = 1
+    for exposure_id in range(1, n_exposures + 1):
+        seeing = 0.6 + 0.4 * abs(rng.normal(0, 1))
+        sky = 300 + 150 * rng.random()
+        for did, cx, cy in centres:
+            r = (cx * cx + cy * cy) ** 0.5 / r_max
+            psf = seeing * (1 + 0.35 * r * r) + det_offset[did] + rng.normal(0, 0.02)
+            bg = sky * (1 - 0.15 * r) + rng.normal(0, 5)
+            zp = 27.0 - 0.2 * r + rng.normal(0, 0.01)
+            rows.append((ccd_id, exposure_id, did, round(psf, 4), round(bg, 2), round(zp, 4)))
+            ccd_id += 1
+    cursor.executemany(f"INSERT INTO {table['name']} VALUES(?, ?, ?, ?, ?, ?);", rows)
+
+
+def load_detectors(path: str) -> list[dict]:
+    """Detector geometry from a saved workspace's instrument block, or []."""
+    if not path:
+        return []
+    try:
+        with open(path) as f:
+            return json.load(f)["instrument"]["detectors"]
+    except (OSError, KeyError, ValueError) as e:
+        logging.getLogger(__name__).warning("No detector geometry loaded from %s: %s", path, e)
+        return []
+
+
+def populate_synthetic(
+    schema: dict, db_filename: str, n_rows: int, seed: int, detectors: list[dict] | None = None, ccd_exposures: int = 0
+) -> None:
     """Fill the test schema's tables with n_rows plausible exposures.
 
     Same tables and column types as the 10-row fixture, so joins and the
@@ -110,6 +152,9 @@ def populate_synthetic(schema: dict, db_filename: str, n_rows: int, seed: int) -
     cursor = connection.cursor()
     for table in schema["tables"]:
         create_table(cursor, table["name"], table["columns"])
+        if table["name"] == "ccdexposure":
+            insert_ccd_rows(cursor, table, detectors or [], min(ccd_exposures, n_rows), rng)
+            continue
         columns = []
         for col in table["columns"]:
             gen = generators.get(col["name"])
@@ -140,6 +185,18 @@ def main() -> None:
         "(e.g. 100000 for the large-scatter spike)",
     )
     parser.add_argument("--seed", type=int, default=0, help="Random seed for synthetic data")
+    parser.add_argument(
+        "--detectors",
+        default=str(REPO / "test" / "fixtures" / "example_saved_workspace.json"),
+        help="Saved workspace whose instrument.detectors give the focal-plane geometry served for testdb "
+        "(LSSTCam by default); '' to serve none",
+    )
+    parser.add_argument(
+        "--ccd-exposures",
+        type=int,
+        default=600,
+        help="How many of the synthetic exposures get one ccdexposure row per detector (focal plane data)",
+    )
     parser.add_argument("--log", default="INFO")
     args = parser.parse_args()
 
@@ -166,10 +223,30 @@ def main() -> None:
     with open(tests_dir / "joins.yaml") as f:
         joins = yaml.safe_load(f)["joins"]
 
+    detectors = load_detectors(args.detectors)
+    if args.rows > 0 and detectors:
+        # A CCD-level table like consdb's ccdexposure, joined to exposure on exposure_id,
+        # so focal-plane requests (ccdexposure.<value> + ccdexposure.detector) work.
+        schema["tables"].append(
+            {
+                "name": "ccdexposure",
+                "index_columns": ["ccdexposure_id"],
+                "columns": [
+                    {"name": "ccdexposure_id", "datatype": "long", "description": "Unique CCD exposure id"},
+                    {"name": "exposure_id", "datatype": "long", "description": "Exposure id"},
+                    {"name": "detector", "datatype": "int", "description": "Detector id"},
+                    {"name": "psf_sigma_median", "datatype": "double", "unit": "pixel", "description": "Median PSF sigma"},
+                    {"name": "sky_bg_median", "datatype": "double", "unit": "adu", "description": "Median sky background"},
+                    {"name": "zero_point_median", "datatype": "double", "unit": "mag", "description": "Median zero point"},
+                ],
+            }
+        )
+        joins.append({"type": "inner", "matches": {"exposure": ["exposure_id"], "ccdexposure": ["exposure_id"]}})
+
     db_file = tempfile.NamedTemporaryFile(prefix="ddv-testdb-", suffix=".sqlite", delete=False)
     db_file.close()
     if args.rows > 0:
-        populate_synthetic(schema, db_file.name, args.rows, args.seed)
+        populate_synthetic(schema, db_file.name, args.rows, args.seed, detectors, args.ccd_exposures)
     else:
         create_database(schema, db_file.name)
     engine = sqlalchemy.create_engine("sqlite:///" + db_file.name)
@@ -177,6 +254,20 @@ def main() -> None:
 
     os.makedirs(args.user_path, exist_ok=True)
     data_center = DataCenter(schemas={"testdb": database}, user_path=args.user_path)
+
+    if detectors:
+        # testdb has no camera in the service; serve the fixture's geometry instead.
+        from lsst.rubintv.analysis.service.commands.db import LoadInstrumentCommand
+
+        original = LoadInstrumentCommand.build_contents
+
+        def build_contents(self, dc):  # type: ignore[no-untyped-def]
+            result = original(self, dc)
+            if self.instrument.lower() == "testdb" and not result.get("detectors"):
+                result["detectors"] = detectors
+            return result
+
+        LoadInstrumentCommand.build_contents = build_contents  # type: ignore[method-assign]
 
     schema.pop("_tests_dir", None)
     logging.getLogger(__name__).info(

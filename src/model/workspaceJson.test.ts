@@ -71,9 +71,13 @@ describe('parseWorkspace', () => {
     expect(ws.skipped).toEqual([{ id: '9', reason: 'column exposure.nope not found' }]);
   });
 
-  it('keeps unsupported window types raw for round-tripping', () => {
+  it('reads focal plane windows into a focal config', () => {
     expect(ws.windows['12']).toMatchObject({ type: 'focalPlane', chart: null });
-    expect((ws.windows['12'].raw as { playbackSpeed: number }).playbackSpeed).toBe(1);
+    expect(ws.windows['12'].focal).toMatchObject({
+      playbackSpeed: 1,
+      loop: false,
+      field: { name: 'ra', schema: 'exposure' },
+    });
   });
 
   it('reads the instrument, day and a compound global query (top-level operator)', () => {
@@ -197,7 +201,18 @@ describe('serializeWorkspace', () => {
       nBins: 25,
       tool: 'MultiSelectionTool.drillDown',
     });
-    expect(back.windows['12'].state.playbackSpeed).toBe(1);
+    expect(back.windows['12'].state).toMatchObject({
+      windowType: 'focalPlane',
+      playbackSpeed: 1,
+      loopPlayback: false,
+      dayObs: '2025-11-05',
+    });
+    expect(back.windows['12'].state.series.fields['right,0']).toEqual({
+      name: 'ra',
+      schema: 'exposure',
+      database: 'testdb',
+    });
+    expect(back.windows['12'].state.axisInfo.axisId).toBe('right,0');
     expect(back.instrument).toEqual({
       instrument: 'testdb',
       detectors: [],

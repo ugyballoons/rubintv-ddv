@@ -3,6 +3,8 @@ import type { WindowMeta } from '../model/workspace';
 import { useWorkspace } from '../store/workspace';
 import { useSeriesData } from '../store/seriesData';
 import { ChartWindow } from './ChartWindow';
+import { FocalPlaneWindow } from '../focalPlane/FocalPlaneWindow';
+import { DetectorSelectorWindow } from '../focalPlane/DetectorSelectorWindow';
 import { dropLoad } from '../hooks/useSeriesLoader';
 
 export function WindowFrame({
@@ -43,6 +45,10 @@ export function WindowFrame({
       </div>
       {w.chart ? (
         <ChartWindow window={w} client={client} />
+      ) : w.focal ? (
+        <FocalPlaneWindow window={w} client={client} />
+      ) : w.type === 'detectorSelector' ? (
+        <DetectorSelectorWindow />
       ) : (
         <div className="centered-note">{w.title} is not implemented yet.</div>
       )}

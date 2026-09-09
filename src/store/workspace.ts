@@ -7,6 +7,8 @@ import {
   NEW_WINDOW_OFFSET,
   WINDOW_TITLES,
   defaultChart,
+  defaultFocal,
+  type FocalPlaneConfig,
   type ChartConfig,
   type WindowMeta,
   type WindowType,
@@ -39,6 +41,7 @@ interface WorkspaceState {
   resizeWindow(id: string, x: number, y: number, width: number, height: number): void;
   focusWindow(id: string): void;
   updateChart(id: string, patch: Partial<ChartConfig> | ((c: ChartConfig) => ChartConfig)): void;
+  updateFocal(id: string, patch: Partial<FocalPlaneConfig>): void;
   setGlobalQuery(patch: Partial<GlobalQuery>): void;
   clearWorkspace(): void;
   replaceWindows(windows: Record<string, WindowMeta>, globalQuery?: GlobalQuery): void;
@@ -80,6 +83,13 @@ export const useWorkspace = create<WorkspaceState>((set, get) => ({
   },
 
   addWindow(type) {
+    if (type === 'detectorSelector') {
+      const existing = Object.values(get().windows).find((w) => w.type === 'detectorSelector');
+      if (existing) {
+        get().focusWindow(existing.id);
+        return existing.id;
+      }
+    }
     const id = newId();
     const { windows, nextZ } = get();
     // New windows stair-step from the most recent one, as in the Flutter app.
@@ -96,6 +106,7 @@ export const useWorkspace = create<WorkspaceState>((set, get) => ({
       ...DEFAULT_WINDOW_SIZE,
       z: nextZ,
       chart: defaultChart(type),
+      ...(defaultFocal(type) && { focal: defaultFocal(type) }),
     };
     set({ windows: { ...windows, [id]: w }, nextZ: nextZ + 1 });
     return id;
@@ -127,6 +138,14 @@ export const useWorkspace = create<WorkspaceState>((set, get) => ({
       if (!w?.chart) return s;
       const chart = typeof patch === 'function' ? patch(w.chart) : { ...w.chart, ...patch };
       return { windows: { ...s.windows, [id]: { ...w, chart } } };
+    });
+  },
+
+  updateFocal(id, patch) {
+    set((s) => {
+      const w = s.windows[id];
+      if (!w?.focal) return s;
+      return { windows: { ...s.windows, [id]: { ...w, focal: { ...w.focal, ...patch } } } };
     });
   },
 

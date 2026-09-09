@@ -24,6 +24,7 @@ import {
   type SeriesConfig,
   type WindowMeta,
   type WindowType,
+  DEFAULT_FOCAL_STOPS,
 } from './workspace';
 
 export interface WorkspaceFile {
@@ -137,10 +138,44 @@ function serializeChartState(w: WindowMeta, newId: () => string): Record<string,
   return state;
 }
 
+/** Flutter FocalPlaneChartState: a single series with the value field on the "right" axis. */
+function serializeFocalState(w: WindowMeta, dayObs: string | null): Record<string, unknown> {
+  const f = w.focal!;
+  const fields = f.field ? { 'right,0': { ...f.field } } : {};
+  return {
+    id: w.id,
+    series: {
+      id: `${w.id}-0`,
+      name: 'focal plane',
+      marker: null,
+      errorBars: null,
+      axes: ['right,0'],
+      fields,
+      query: null,
+    },
+    axisInfo: {
+      label: f.field ? `${f.field.schema}.${f.field.name}` : '<value>',
+      mapping: { type: 'linear' },
+      isInverted: false,
+      axisId: 'right,0',
+      isBounded: true,
+      fixedBounds: null,
+    },
+    playbackSpeed: f.playbackSpeed,
+    loopPlayback: f.loop,
+    dayObs,
+    windowType: 'focalPlane',
+  };
+}
+
 export function serializeWorkspace(input: SaveInput): Record<string, unknown> {
   const windows: Record<string, unknown> = {};
   for (const w of Object.values(input.windows)) {
-    const state = w.chart ? serializeChartState(w, input.newId) : w.raw;
+    const state = w.chart
+      ? serializeChartState(w, input.newId)
+      : w.focal
+        ? serializeFocalState(w, input.dayObs)
+        : w.raw;
     if (!state) continue; // unsupported window with nothing to round-trip
     windows[w.id] = {
       state,
@@ -383,8 +418,30 @@ export function parseWorkspace(
             tool: parseTool(state.tool),
           },
         };
+      } else if (type === 'focalPlane') {
+        const series = state.series as Record<string, unknown> | undefined;
+        const fields = series?.fields ? parseFields(series.fields) : {};
+        const field = Object.values(fields)[0] ?? null;
+        if (field && instrument) {
+          const table = instrument.tables.find((t) => t.name === field.schema);
+          if (!table) throw new Error(`table ${field.schema} not found`);
+          if (!table.columns.some((c) => c.name === field.name))
+            throw new Error(`column ${field.schema}.${field.name} not found`);
+        }
+        windows[id] = {
+          ...base,
+          title: base.title ?? titleFor(type),
+          chart: null,
+          focal: {
+            field,
+            playbackSpeed: typeof state.playbackSpeed === 'number' ? state.playbackSpeed : 1,
+            loop: Boolean(state.loopPlayback),
+            stops: DEFAULT_FOCAL_STOPS,
+          },
+        };
+      } else if (type === 'detectorSelector') {
+        windows[id] = { ...base, title: base.title ?? titleFor(type), chart: null };
       } else {
-        // Not modelled yet (focal plane, detector selector): keep the raw state so saving round-trips it.
         windows[id] = { ...base, title: base.title ?? titleFor(type), chart: null, raw: state };
       }
     } catch (e) {

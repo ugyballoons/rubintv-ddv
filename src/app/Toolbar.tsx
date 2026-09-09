@@ -46,6 +46,11 @@ export function Toolbar({ client }: { client: DdvClient }) {
   const clearSelection = useSelection((s) => s.clearSelection);
   const hasWindows = Object.keys(windows).length > 0;
   const query = useWorkspace((s) => s.globalQuery.query);
+  const detectorId = useWorkspace((s) => s.globalQuery.detectorId);
+  const detectorLabel =
+    detectorId === null
+      ? ''
+      : (instrument?.detectors.find((d) => d.id === detectorId)?.name ?? String(detectorId));
   const [queryOpen, setQueryOpen] = useState(false);
 
   const changeInstrument = async (name: string | null) => {
@@ -79,12 +84,18 @@ export function Toolbar({ client }: { client: DdvClient }) {
       </label>
       <Menu
         label="Add chart"
-        items={CHART_WINDOW_TYPES.map((t: WindowType) => ({
+        items={[...CHART_WINDOW_TYPES, 'focalPlane' as WindowType].map((t: WindowType) => ({
           label: WINDOW_TITLES[t],
           onClick: () => addWindow(t),
         }))}
       />
       <WorkspaceMenu client={client} />
+      <button
+        onClick={() => addWindow('detectorSelector')}
+        title="Pick the current detector on the focal plane"
+      >
+        Detector{detectorLabel ? `: ${detectorLabel}` : ''}
+      </button>
       <label title="Restrict every chart that uses the global query to this observation night">
         Night
         <input

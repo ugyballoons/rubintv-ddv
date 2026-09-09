@@ -55,6 +55,19 @@ export interface ChartConfig {
   readonly tool: CursorTool;
 }
 
+export interface FocalPlaneConfig {
+  /** Column shown on the focal plane, from a CCD-level table. */
+  readonly field: ColumnRef | null;
+  readonly playbackSpeed: number;
+  readonly loop: boolean;
+  readonly stops: readonly { value: number; color: string }[];
+}
+
+export const DEFAULT_FOCAL_STOPS: readonly { value: number; color: string }[] = [
+  { value: 0, color: '#2196f3' },
+  { value: 100, color: '#f44336' },
+];
+
 export interface WindowMeta {
   readonly id: string;
   readonly type: WindowType;
@@ -65,6 +78,7 @@ export interface WindowMeta {
   readonly height: number;
   readonly z: number;
   readonly chart: ChartConfig | null;
+  readonly focal?: FocalPlaneConfig;
   /** Original saved state for window types the app does not model yet; written back unchanged. */
   readonly raw?: unknown;
 }
@@ -95,6 +109,12 @@ export function defaultAxes(type: WindowType): AxisConfig[] {
     default:
       return [];
   }
+}
+
+export function defaultFocal(type: WindowType): FocalPlaneConfig | undefined {
+  return type === 'focalPlane'
+    ? { field: null, playbackSpeed: 1, loop: false, stops: DEFAULT_FOCAL_STOPS }
+    : undefined;
 }
 
 export function defaultChart(type: WindowType): ChartConfig | null {
