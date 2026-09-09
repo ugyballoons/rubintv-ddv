@@ -351,6 +351,7 @@ phase 2 if a second person is available.
 | 2026-09-09 | 0     | Spike complete on ECharts (see §3.3.1).                                                                                                                                                                                                                                    |
 | 2026-09-09 | 1     | Stores, window manager (react-rnd), chart windows, toolbar, Flutter-compatible workspace load/save verified against a real LSSTCam file, per-window status.                                                                                                                |
 | 2026-09-09 | 2     | Query model and editor (global and per-series), multiple series per chart, series editor and legend, box chart, drill-down channel with Escape reset, axis editor. Remaining from phase 2: polar sector selection, histogram partial-bin highlighting, preview throttling. |
+| 2026-09-09 | 3     | Focal plane window (SVG geometry, colorbar with editable stops, playback, CCD column editor), detector selector, Flutter-format persistence; dev worker serves a synthetic ccdexposure table and LSSTCam geometry for testdb.                                              |
 
 ## 6. Backend and protocol changes to make alongside
 
