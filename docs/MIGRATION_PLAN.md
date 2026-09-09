@@ -360,6 +360,13 @@ Small, and all backwards compatible with the Flutter client:
 6. Optional: expose `get bounds` in the series editor (already implemented
    server-side, never called).
 7. Optional, later: Arrow frames for large payloads.
+8. Broker reply attribution (`mock_server.py` and RubinTV's
+   `ddv_websocket_handler.py`): when a client disconnects while its request is
+   running, the worker is marked idle at once and its eventual reply is then
+   delivered to whichever client is attached next, after which every reply is
+   off by one and clients see timeouts. Match replies to requests by
+   `requestId` and only free a worker when it actually replies. Found during
+   the phase-1 browser tests.
 
 ## 7. Risks
 
