@@ -1,16 +1,32 @@
 import type { DdvClient } from './client';
 import type { CountResult, InstrumentInfo, LoadColumnsParams, TableColumns } from './types';
 
-/** `load instrument` has no requestId in the Flutter client; the reply arrives as `instrument info`. */
-export function loadInstrument(client: DdvClient, instrument: string): Promise<InstrumentInfo> {
-  return new Promise((resolve) => {
+/**
+ * `load instrument` is answered by an `instrument info` envelope. The Flutter
+ * client sent it without a requestId; this one attaches one and, because the
+ * broker can misroute stale replies, also checks the instrument name.
+ */
+export function loadInstrument(
+  client: DdvClient,
+  instrument: string,
+  options: { timeoutMs?: number } = {},
+): Promise<InstrumentInfo> {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      off();
+      reject(new Error(`load instrument ${instrument} timed out`));
+    }, options.timeoutMs ?? 60_000);
     const off = client.onMessage((env) => {
-      if (env.type === 'instrument info') {
-        off();
-        resolve(env.content as InstrumentInfo);
-      }
+      if (env.type !== 'instrument info') return;
+      const info = env.content as InstrumentInfo;
+      if (info.instrument.toLowerCase() !== instrument.toLowerCase()) return;
+      clearTimeout(timer);
+      off();
+      resolve(info);
     });
-    client.send({ name: 'load instrument', parameters: { instrument } });
+    client.request('load instrument', { instrument }).catch(() => {
+      /* resolved through the instrument-name match above; errors surface via onError */
+    });
   });
 }
 

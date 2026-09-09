@@ -83,11 +83,11 @@ describe('DdvClient', () => {
     expect(await countRows(client, { database: 'testdb', columns: ['exposure.ra'] })).toBe(42);
   });
 
-  it('handles load instrument, which has no requestId', async () => {
+  it('resolves load instrument by matching the instrument name in the reply', async () => {
     const info = await loadInstrument(client, 'LSSTCam');
     expect(info.instrument).toBe('LSSTCam');
     const sent = received.find((m: any) => m.name === 'load instrument') as any;
-    expect(sent.requestId).toBeUndefined();
+    expect(sent.requestId).toMatch(/[0-9a-f-]{36}/);
   });
 
   it('surfaces errors without requestId globally and times out the request', async () => {

@@ -1,10 +1,18 @@
 import { useEffect, useMemo } from 'react';
+import './styles.css';
 import { websocketUrl } from './config';
 import { DdvClient } from './protocol/client';
 import { useConnection } from './store/connection';
 import { Toolbar } from './app/Toolbar';
-import { SchemaBrowser } from './app/SchemaBrowser';
-import { ScatterSpike } from './app/ScatterSpike';
+import { WorkspaceView } from './workspace/WorkspaceView';
+import { useWorkspace } from './store/workspace';
+
+// Dev-only hook for browser automation and debugging: window.__ddv.save() / load(text).
+declare global {
+  interface Window {
+    __ddv?: { save(): string; load(text: string): Promise<unknown> };
+  }
+}
 
 export default function App() {
   const client = useMemo(() => new DdvClient(websocketUrl()), []);
@@ -12,6 +20,12 @@ export default function App() {
   const lastError = useConnection((s) => s.lastError);
 
   useEffect(() => {
+    if (import.meta.env.DEV) {
+      window.__ddv = {
+        save: () => useWorkspace.getState().saveWorkspace(true),
+        load: (text) => useWorkspace.getState().loadWorkspace(client, text),
+      };
+    }
     const unbind = bind(client);
     client.connect();
     return () => {
@@ -21,17 +35,17 @@ export default function App() {
   }, [client, bind]);
 
   return (
-    <div style={{ fontFamily: 'system-ui, sans-serif', color: '#16262e' }}>
+    <div className="app">
       <Toolbar client={client} />
-      <main style={{ padding: 16 }}>
-        {lastError && (
-          <p role="alert" style={{ color: '#a63d3d' }}>
-            {lastError.message}
-          </p>
-        )}
-        <SchemaBrowser />
-        <ScatterSpike client={client} />
-      </main>
+      {lastError && (
+        <p
+          role="alert"
+          style={{ margin: 0, padding: '4px 12px', color: 'var(--bad)', background: '#fff' }}
+        >
+          {lastError.message}
+        </p>
+      )}
+      <WorkspaceView client={client} />
     </div>
   );
 }
