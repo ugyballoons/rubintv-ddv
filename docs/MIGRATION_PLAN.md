@@ -204,6 +204,28 @@ for the whole app. If ECharts passes, proceed; if it fails on (1), switch the
 scatter adapter to Plotly `scattergl` or `regl-scatterplot` and keep ECharts for
 the rest. The adapter boundary in §4.2 is what makes that swap cheap.
 
+### 3.3.1 Spike log
+
+Measured 2026-09-09 in headless Chrome (Playwright), Vite dev build, against
+the mock broker and `dev_worker.py --rows 100000` (sqlite, synthetic exposures).
+
+| Experiment | Result |
+|---|---|
+| Fetch 100k rows of 3 columns over the websocket (JSON) | ~0.3 s, convert to typed arrays ~35 ms |
+| Rectangle hit-test over 100k points (KDBush, `convertFromPixel`) | 2–5 ms per query |
+| Drag select, one 100k scatter | 61 fps |
+| Drag select, two linked 100k scatters + histogram, live preview on all | 32–38 fps |
+| Selection overlay on its own ECharts `zlevel` | kept base layer from re-uploading; modest fps gain |
+| Histogram: pixel-uniform bins on log10 axis (`custom` series) | correct equal-width bars |
+| Bin selection: click, cmd-click toggle, shift-click range, arrow keys with wrap, shift+arrow extend across blocks | ported state machine passes unit tests and drives the linked scatters in the browser |
+| Console errors | none |
+
+Open items from the spike: the frame rate with three linked panels sits just
+above the 30 fps bar and is dominated by ECharts repainting the large base
+series when the shared selection changes; candidates are throttling preview
+broadcasts to linked charts to ~20 Hz, or drawing the base layer once to an
+offscreen canvas. Polar (experiment 3) not yet run.
+
 ### 3.4 Alternatives considered
 
 - **Plotly.js**: see above. Fallback for the scatter adapter.
