@@ -41,7 +41,8 @@ export interface SchemaTable {
 }
 
 export interface Schema {
-  name: string;
+  /** Null for the sqlite test database. */
+  name: string | null;
   description?: string;
   tables: SchemaTable[];
 }

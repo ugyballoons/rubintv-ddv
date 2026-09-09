@@ -1,8 +1,9 @@
 import { useEffect, useMemo } from 'react';
-import { APP_VERSION, websocketUrl } from './config';
+import { websocketUrl } from './config';
 import { DdvClient } from './protocol/client';
 import { useConnection } from './store/connection';
-import { StatusDot } from './app/StatusDot';
+import { Toolbar } from './app/Toolbar';
+import { SchemaBrowser } from './app/SchemaBrowser';
 
 export default function App() {
   const client = useMemo(() => new DdvClient(websocketUrl()), []);
@@ -19,18 +20,16 @@ export default function App() {
   }, [client, bind]);
 
   return (
-    <div style={{ fontFamily: 'system-ui, sans-serif', padding: 16 }}>
-      <header style={{ display: 'flex', alignItems: 'center', gap: 12, height: 40 }}>
-        <StatusDot />
-        <strong>RubinTV DDV</strong>
-        <span style={{ color: '#7a8a91', fontSize: 13 }}>v{APP_VERSION}</span>
-        <code style={{ marginLeft: 'auto', fontSize: 12, color: '#7a8a91' }}>{client.url}</code>
-      </header>
-      {lastError && (
-        <p role="alert" style={{ color: '#a63d3d' }}>
-          {lastError.message}
-        </p>
-      )}
+    <div style={{ fontFamily: 'system-ui, sans-serif', color: '#16262e' }}>
+      <Toolbar client={client} />
+      <main style={{ padding: 16 }}>
+        {lastError && (
+          <p role="alert" style={{ color: '#a63d3d' }}>
+            {lastError.message}
+          </p>
+        )}
+        <SchemaBrowser />
+      </main>
     </div>
   );
 }

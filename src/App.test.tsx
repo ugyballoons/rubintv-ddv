@@ -18,9 +18,11 @@ vi.mock('./protocol/client', () => ({
 }));
 
 describe('App', () => {
-  it('renders the shell with a connection indicator', () => {
+  it('renders the toolbar with a disabled instrument selector while disconnected', () => {
     render(<App />);
     expect(screen.getByText('RubinTV DDV')).toBeInTheDocument();
     expect(screen.getByRole('status')).toHaveAttribute('aria-label', 'connection closed');
+    expect(screen.getByLabelText('Instrument')).toBeDisabled();
+    expect(screen.getByText(/Select an instrument/)).toBeInTheDocument();
   });
 });
