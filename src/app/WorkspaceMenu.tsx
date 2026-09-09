@@ -4,6 +4,7 @@ import { useWorkspace } from '../store/workspace';
 import { useSeriesData } from '../store/seriesData';
 import { useSelection } from '../store/selection';
 import { Menu } from './Menu';
+import { FileDialog } from '../files/FileDialog';
 
 /**
  * Save and load the workspace in the Flutter app's JSON format. Clipboard and
@@ -15,6 +16,7 @@ export function WorkspaceMenu({ client }: { client: DdvClient }) {
   const clearData = useSeriesData((s) => s.clear);
   const clearSelection = useSelection((s) => s.clearSelection);
   const [pasteOpen, setPasteOpen] = useState(false);
+  const [remote, setRemote] = useState<'load' | 'save' | null>(null);
   const [pasted, setPasted] = useState('');
   const [message, setMessage] = useState<string | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
@@ -49,6 +51,8 @@ export function WorkspaceMenu({ client }: { client: DdvClient }) {
       <Menu
         label="Workspace"
         items={[
+          { label: 'Save to server…', onClick: () => setRemote('save') },
+          { label: 'Load from server…', onClick: () => setRemote('load') },
           {
             label: 'Copy JSON to clipboard',
             onClick: () =>
@@ -75,6 +79,19 @@ export function WorkspaceMenu({ client }: { client: DdvClient }) {
         <span className="meta" role="status" onClick={() => setMessage(null)} title="Dismiss">
           {message}
         </span>
+      )}
+      {remote && (
+        <FileDialog
+          client={client}
+          mode={remote}
+          content={remote === 'save' ? saveWorkspace(true) : undefined}
+          onCancel={() => setRemote(null)}
+          onDone={async ({ text, path }) => {
+            setRemote(null);
+            if (text !== undefined) await load(text);
+            else setMessage(`Saved ${path.join('/')}`);
+          }}
+        />
       )}
       {pasteOpen && (
         <div className="dialog-backdrop" onMouseDown={() => setPasteOpen(false)}>
