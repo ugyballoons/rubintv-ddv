@@ -225,21 +225,40 @@ the rest. The adapter boundary in §4.2 is what makes that swap cheap.
 
 ## 4. Target architecture
 
-### 4.1 Package layout (standalone repo, replaces `rubintv_visualization`)
+### 4.1 Repositories
 
-```
-ddv/
-  src/
-    protocol/      websocket client, message types, requestId correlation, mock-server fixtures
-    model/         schema, instrument, DataId, QueryExpression, workspace serialisation (v0.1 compatible)
-    store/         Zustand slices: workspace, windows, selection, drillDown, globalQuery, connection
-    charts/        ChartAdapter interface + ECharts implementations: scatter, polar, histogram, box
-    focalPlane/    SVG renderer, colorbar, playback, column editor, detector selector
-    query/         expression editor
-    files/         remote file dialog
-    workspace/     toolbar, window manager (react-rnd), editors, dialogs
-  test/            vitest + testing-library; protocol tests replay recorded frames
-```
+Two separate public repositories, mirroring the current app/library split
+(decided 2026-09-09; both created under github.com/ugyballoons to start):
+
+- **`rubin-charts`** (https://github.com/ugyballoons/rubin-charts): the
+  engine-independent chart core and the ECharts adapters. Successor to `rubin_chart`.
+
+  ```
+  src/core/        DataId keys, axis mappings, pixel-space binning, KDBush point index,
+                   histogram bin-selection state machine
+  src/adapter.ts   ChartAdapterProps contract
+  src/adapters/    echarts option builders: scatter (done), polar, histogram, box
+  ```
+
+- **`rubintv-ddv`** (https://github.com/ugyballoons/rubintv-ddv): the React app.
+  Successor to `rubintv_visualization`. Depends on `rubin-charts` from phase 2
+  onwards (published to npm or consumed as a git dependency; decide then).
+
+  ```
+  src/protocol/    websocket client, message types, requestId correlation (done)
+  src/model/       schema, instrument, QueryExpression, workspace serialisation (v0.1 compatible)
+  src/store/       Zustand slices: connection (done), workspace, windows, selection, drillDown, globalQuery
+  src/charts/      chart windows built on rubin-charts adapters
+  src/focalPlane/  SVG renderer, colorbar, playback, column editor, detector selector
+  src/query/       expression editor
+  src/files/       remote file dialog
+  src/workspace/   toolbar, window manager (react-rnd), editors, dialogs
+  docs/            this plan
+  ```
+
+Both are GPL-3.0-or-later like the rest of the Rubin software, use Vite,
+vitest, oxlint and prettier, and run lint, typecheck, test and build in GitHub
+Actions on every push.
 
 ### 4.2 The chart adapter boundary
 
