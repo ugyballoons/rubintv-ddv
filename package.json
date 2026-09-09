@@ -14,9 +14,11 @@
     "test:watch": "vitest"
   },
   "dependencies": {
+    "echarts": "^6.1.0",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
     "reconnecting-websocket": "^4.4.0",
+    "rubin-charts": "file:../rubin-charts",
     "zustand": "^5.0.15"
   },
   "devDependencies": {

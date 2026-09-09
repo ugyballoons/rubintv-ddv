@@ -4,6 +4,7 @@ import { DdvClient } from './protocol/client';
 import { useConnection } from './store/connection';
 import { Toolbar } from './app/Toolbar';
 import { SchemaBrowser } from './app/SchemaBrowser';
+import { ScatterSpike } from './app/ScatterSpike';
 
 export default function App() {
   const client = useMemo(() => new DdvClient(websocketUrl()), []);
@@ -29,6 +30,7 @@ export default function App() {
           </p>
         )}
         <SchemaBrowser />
+        <ScatterSpike client={client} />
       </main>
     </div>
   );

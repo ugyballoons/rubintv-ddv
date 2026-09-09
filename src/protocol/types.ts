@@ -54,11 +54,15 @@ export interface InstrumentInfo {
   schema?: Schema;
 }
 
-/** Columnar payload: every array has equal length; day_obs and seq_num are always injected. */
+/**
+ * Columnar payload: every array has equal length; day_obs and seq_num are always
+ * injected. day_obs is an int (YYYYMMDD) from consdb and a "YYYY-MM-DD" string from
+ * the sqlite test database.
+ */
 export interface TableColumns {
   schema: string;
   columns: string[];
-  data: Record<string, (number | string)[]> & { day_obs: number[]; seq_num: number[] };
+  data: Record<string, (number | string)[]> & { day_obs: (number | string)[]; seq_num: number[] };
 }
 
 export interface CountResult {
