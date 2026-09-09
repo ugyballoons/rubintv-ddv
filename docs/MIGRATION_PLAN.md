@@ -218,13 +218,17 @@ the mock broker and `dev_worker.py --rows 100000` (sqlite, synthetic exposures).
 | Selection overlay on its own ECharts `zlevel`                                                                     | kept base layer from re-uploading; modest fps gain                                   |
 | Histogram: pixel-uniform bins on log10 axis (`custom` series)                                                     | correct equal-width bars                                                             |
 | Bin selection: click, cmd-click toggle, shift-click range, arrow keys with wrap, shift+arrow extend across blocks | ported state machine passes unit tests and drives the linked scatters in the browser |
+| Polar scatter: angle zero at top, clockwise, radius inverted (max at centre), follows shared selection            | correct; 100k points in large mode                                                   |
 | Console errors                                                                                                    | none                                                                                 |
 
-Open items from the spike: the frame rate with three linked panels sits just
-above the 30 fps bar and is dominated by ECharts repainting the large base
-series when the shared selection changes; candidates are throttling preview
-broadcasts to linked charts to ~20 Hz, or drawing the base layer once to an
-offscreen canvas. Polar (experiment 3) not yet run.
+**Phase-0 decision: proceed with ECharts.** Every experiment passed without
+needing Plotly for any part. Open items carried into phase 2: the frame rate
+with three or four linked 100k panels sits at 32–38 fps, dominated by ECharts
+repainting the large base series when the shared selection changes (throttle
+preview broadcasts to linked charts to ~20 Hz, or draw the base layer once to
+an offscreen canvas); selection _from_ a polar chart (sector drag) is not yet
+implemented; histograms do not yet show bins partially covered by a selection
+made elsewhere.
 
 ### 3.4 Alternatives considered
 
