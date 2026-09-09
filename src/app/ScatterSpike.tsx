@@ -6,6 +6,7 @@ import { toNumericSeries } from '../model/columns';
 import { useWorkspace } from '../store/workspace';
 import { ScatterPanel } from '../charts/ScatterPanel';
 import { HistogramPanel } from '../charts/HistogramPanel';
+import { PolarPanel } from '../charts/PolarPanel';
 
 const ROW_CONFIRM_THRESHOLD = 100_000;
 
@@ -78,6 +79,15 @@ export function ScatterSpike({ client }: { client: DdvClient }) {
   const xAxisB = useMemo(() => axis('bottom', x2, false, false), [x2]);
   const yAxis = useMemo(() => axis('left', yId, false, yInverted), [yId, yInverted]);
   const histAxis = useMemo(() => axis('bottom', x1, histLog, false), [x1, histLog]);
+  // Polar: angle = x1 (ra, degrees), radius = y (dec) with the maximum at the centre.
+  const radialAxis = useMemo<AxisSpec>(
+    () => ({ location: 'radial', label: yId, mapping: 'linear', inverted: true, kind: 'number' }),
+    [yId],
+  );
+  const angularAxis = useMemo<AxisSpec>(
+    () => ({ location: 'angular', label: x1, mapping: 'linear', inverted: false, kind: 'number' }),
+    [x1],
+  );
 
   const onSelect = useCallback((ids: ReadonlySet<DataIdKey>) => setSelected(ids), []);
 
@@ -166,7 +176,7 @@ export function ScatterSpike({ client }: { client: DdvClient }) {
           shift, ← →
         </span>
       </div>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12, height: 440 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, gridAutoRows: 400 }}>
         {(['a', 'b'] as const).map((k) => (
           <div
             key={k}
@@ -202,6 +212,19 @@ export function ScatterSpike({ client }: { client: DdvClient }) {
               nBins={nBins}
               onSelect={onSelect}
               onInfo={setTiming}
+            />
+          )}
+        </div>
+        <div
+          style={{ border: '1px solid #d3dcde', borderRadius: 6, minWidth: 0 }}
+          data-testid="panel-p"
+        >
+          {loaded && (
+            <PolarPanel
+              series={loaded.a}
+              radialAxis={radialAxis}
+              angularAxis={angularAxis}
+              selected={selected}
             />
           )}
         </div>
