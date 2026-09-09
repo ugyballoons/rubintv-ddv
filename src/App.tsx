@@ -6,11 +6,12 @@ import { useConnection } from './store/connection';
 import { Toolbar } from './app/Toolbar';
 import { WorkspaceView } from './workspace/WorkspaceView';
 import { useWorkspace } from './store/workspace';
+import { useSelection } from './store/selection';
 
 // Dev-only hook for browser automation and debugging: window.__ddv.save() / load(text).
 declare global {
   interface Window {
-    __ddv?: { save(): string; load(text: string): Promise<unknown> };
+    __ddv?: { save(): string; load(text: string): Promise<unknown>; state(): unknown };
   }
 }
 
@@ -24,6 +25,21 @@ export default function App() {
       window.__ddv = {
         save: () => useWorkspace.getState().saveWorkspace(true),
         load: (text) => useWorkspace.getState().loadWorkspace(client, text),
+        state: () => {
+          const sel = useSelection.getState();
+          const ws = useWorkspace.getState();
+          return {
+            selected: sel.selected.size,
+            preview: sel.preview?.size ?? null,
+            drillDown: sel.drillDown?.size ?? null,
+            windows: Object.values(ws.windows).map((w) => ({
+              id: w.id,
+              type: w.type,
+              tool: w.chart?.tool,
+              series: w.chart?.series.length,
+            })),
+          };
+        },
       };
     }
     const unbind = bind(client);

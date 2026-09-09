@@ -39,6 +39,10 @@ export function HistogramPanel({ series, mainAxis, nBins, onSelect, onInfo }: Pr
   const chart = useRef<EChartsInstance | null>(null);
   const [binSel, setBinSel] = useState<BinSelectionState>(emptyBinSelection);
   const host = useRef<HTMLDivElement>(null);
+  // The click handler is registered once; it reads the latest hit-test through this ref.
+  const binAtPixelRef = useRef<(px: number, py: number) => { series: string; bin: number } | null>(
+    () => null,
+  );
 
   const input = useMemo(
     () => ({
@@ -94,20 +98,19 @@ export function HistogramPanel({ series, mainAxis, nBins, onSelect, onInfo }: Pr
     [bins, mainAxis.location, series],
   );
 
-  const onReady = useCallback(
-    (c: EChartsInstance) => {
-      chart.current = c;
-      c.getZr().on('click', (e) => {
-        host.current?.focus();
-        const raw = e.event as MouseEvent;
-        const bin = binAtPixel(e.offsetX, e.offsetY);
-        setBinSel((s) =>
-          clickBin(s, bin, { shift: raw.shiftKey, cmdCtrl: raw.metaKey || raw.ctrlKey }),
-        );
-      });
-    },
-    [binAtPixel],
-  );
+  binAtPixelRef.current = binAtPixel;
+
+  const onReady = useCallback((c: EChartsInstance) => {
+    chart.current = c;
+    c.getZr().on('click', (e) => {
+      host.current?.focus();
+      const raw = e.event as MouseEvent;
+      const bin = binAtPixelRef.current(e.offsetX, e.offsetY);
+      setBinSel((s) =>
+        clickBin(s, bin, { shift: raw.shiftKey, cmdCtrl: raw.metaKey || raw.ctrlKey }),
+      );
+    });
+  }, []);
 
   const onKeyDown = (e: React.KeyboardEvent) => {
     if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;

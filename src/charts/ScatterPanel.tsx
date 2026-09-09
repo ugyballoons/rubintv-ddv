@@ -38,6 +38,10 @@ export function ScatterPanel({ series, xAxis, yAxis, selected, onSelect, onTimin
   const drag = useRef<Rect | null>(null);
   const frame = useRef<number | null>(null);
   const [rect, setRect] = useState<Rect | null>(null);
+  // ECharts handlers are registered once; they read the latest callbacks through these refs.
+  const selectRef = useRef<(r: Rect, committed: boolean) => void>(() => {});
+  const onSelectRef = useRef(onSelect);
+  onSelectRef.current = onSelect;
 
   const option = useMemo(
     () => buildScatterOption({ series, xAxis, yAxis, selected: new Set(), drillDown: null }),
@@ -88,47 +92,46 @@ export function ScatterPanel({ series, xAxis, yAxis, selected, onSelect, onTimin
     [indexes, series, onSelect, onTiming],
   );
 
-  const onReady = useCallback(
-    (c: EChartsInstance) => {
-      chart.current = c;
-      const zr = c.getZr();
-      zr.on('mousedown', (e) => {
-        const raw = e.event as MouseEvent;
-        if (raw.shiftKey || raw.button !== 0) return;
-        drag.current = { x0: e.offsetX, y0: e.offsetY, x1: e.offsetX, y1: e.offsetY };
-      });
-      // Mouse events can arrive faster than frames; coalesce previews to one per frame.
-      zr.on('mousemove', (e) => {
+  selectRef.current = select;
+
+  const onReady = useCallback((c: EChartsInstance) => {
+    chart.current = c;
+    const zr = c.getZr();
+    zr.on('mousedown', (e) => {
+      const raw = e.event as MouseEvent;
+      if (raw.shiftKey || raw.button !== 0) return;
+      drag.current = { x0: e.offsetX, y0: e.offsetY, x1: e.offsetX, y1: e.offsetY };
+    });
+    // Mouse events can arrive faster than frames; coalesce previews to one per frame.
+    zr.on('mousemove', (e) => {
+      if (!drag.current) return;
+      drag.current = { ...drag.current, x1: e.offsetX, y1: e.offsetY };
+      if (frame.current !== null) return;
+      frame.current = requestAnimationFrame(() => {
+        frame.current = null;
         if (!drag.current) return;
-        drag.current = { ...drag.current, x1: e.offsetX, y1: e.offsetY };
-        if (frame.current !== null) return;
-        frame.current = requestAnimationFrame(() => {
-          frame.current = null;
-          if (!drag.current) return;
-          setRect(drag.current);
-          select(drag.current, false);
-        });
+        setRect(drag.current);
+        selectRef.current(drag.current, false);
       });
-      const finish = () => {
-        const r = drag.current;
-        drag.current = null;
-        if (frame.current !== null) {
-          cancelAnimationFrame(frame.current);
-          frame.current = null;
-        }
-        setRect(null);
-        if (!r) return;
-        if (Math.abs(r.x1 - r.x0) < 3 && Math.abs(r.y1 - r.y0) < 3) {
-          onSelect(new Set(), true); // click on empty space clears
-          return;
-        }
-        select(r, true);
-      };
-      zr.on('mouseup', finish);
-      zr.on('globalout', finish);
-    },
-    [select, onSelect],
-  );
+    });
+    const finish = () => {
+      const r = drag.current;
+      drag.current = null;
+      if (frame.current !== null) {
+        cancelAnimationFrame(frame.current);
+        frame.current = null;
+      }
+      setRect(null);
+      if (!r) return;
+      if (Math.abs(r.x1 - r.x0) < 3 && Math.abs(r.y1 - r.y0) < 3) {
+        onSelectRef.current(new Set(), true); // click on empty space clears
+        return;
+      }
+      selectRef.current(r, true);
+    };
+    zr.on('mouseup', finish);
+    zr.on('globalout', finish);
+  }, []);
 
   return (
     <div style={{ position: 'relative', width: '100%', height: '100%' }}>

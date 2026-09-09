@@ -12,12 +12,14 @@ import {
 import { useWorkspace } from '../store/workspace';
 import { useSeriesData, idleEntry, type SeriesEntry } from '../store/seriesData';
 import { useSelection, effectiveSelection } from '../store/selection';
+import { filterSeriesSpec } from '../model/drillDown';
 import { useSeriesLoader, confirmLoad, cancelLoad, dropLoad } from '../hooks/useSeriesLoader';
 import { ScatterPanel } from '../charts/ScatterPanel';
 import { HistogramPanel } from '../charts/HistogramPanel';
 import { PolarPanel } from '../charts/PolarPanel';
 import { BoxPanel } from '../charts/BoxPanel';
 import { SeriesEditor } from './SeriesEditor';
+import { AxisEditor } from './AxisEditor';
 
 export function ChartWindow({ window: w, client }: { window: WindowMeta; client: DdvClient }) {
   const chart = w.chart!;
@@ -25,6 +27,7 @@ export function ChartWindow({ window: w, client }: { window: WindowMeta; client:
   const updateChart = useWorkspace((s) => s.updateChart);
   const removeData = useSeriesData((s) => s.remove);
   const [editing, setEditing] = useState<{ series: SeriesConfig; isNew: boolean } | null>(null);
+  const [axesOpen, setAxesOpen] = useState(false);
 
   const newSeries = (): SeriesConfig | null => {
     if (!instrument?.database) return null;
@@ -73,18 +76,6 @@ export function ChartWindow({ window: w, client }: { window: WindowMeta; client:
     setEditing(null);
   };
 
-  const toggleAxis = (location: AxisLocation, key: 'inverted' | 'mapping') =>
-    updateChart(w.id, (c) => ({
-      ...c,
-      axes: c.axes.map((a) =>
-        a.location !== location
-          ? a
-          : key === 'inverted'
-            ? { ...a, inverted: !a.inverted }
-            : { ...a, mapping: a.mapping === 'linear' ? 'log10' : 'linear' },
-      ),
-    }));
-
   return (
     <>
       <div className="window-toolbar">
@@ -111,26 +102,31 @@ export function ChartWindow({ window: w, client }: { window: WindowMeta; client:
             </button>
           ))}
         </span>
-        {chart.axes.map((a) => (
-          <label key={a.location} title={`${a.location} axis`}>
-            <input
-              type="checkbox"
-              checked={a.inverted}
-              onChange={() => toggleAxis(a.location, 'inverted')}
-            />
-            invert {a.location}
-            {(a.location === 'bottom' || a.location === 'left' || a.location === 'radial') && (
-              <>
-                <input
-                  type="checkbox"
-                  checked={a.mapping !== 'linear'}
-                  onChange={() => toggleAxis(a.location, 'mapping')}
-                />
-                log
-              </>
-            )}
-          </label>
-        ))}
+        {(w.type === 'cartesianScatter' || w.type === 'polarScatter') && (
+          <span className="tool-switch" role="radiogroup" aria-label="cursor tool">
+            <button
+              role="radio"
+              aria-checked={chart.tool === 'select'}
+              className={chart.tool === 'select' ? 'on' : ''}
+              onClick={() => updateChart(w.id, { tool: 'select' })}
+              title="Drag to select points"
+            >
+              select
+            </button>
+            <button
+              role="radio"
+              aria-checked={chart.tool === 'drillDown'}
+              className={chart.tool === 'drillDown' ? 'on' : ''}
+              onClick={() => updateChart(w.id, { tool: 'drillDown' })}
+              title="Drag to keep only those points in every chart (Esc clears)"
+            >
+              drill down
+            </button>
+          </span>
+        )}
+        <button onClick={() => setAxesOpen(true)} title="Axis labels, scales and directions">
+          axes…
+        </button>
         {(w.type === 'histogram' || w.type === 'box') && (
           <label>
             bins
@@ -171,6 +167,16 @@ export function ChartWindow({ window: w, client }: { window: WindowMeta; client:
         )}
       </div>
       {chart.series.length > 0 && <WindowStatus seriesIds={chart.series.map((s) => s.id)} />}
+      {axesOpen && (
+        <AxisEditor
+          axes={chart.axes}
+          onCancel={() => setAxesOpen(false)}
+          onAccept={(axes) => {
+            updateChart(w.id, { axes });
+            setAxesOpen(false);
+          }}
+        />
+      )}
       {editing && instrument && (
         <SeriesEditor
           instrument={instrument}
@@ -237,10 +243,20 @@ function SeriesChart({ window: w }: { window: WindowMeta }) {
   const ids = chart.series.map((s) => s.id);
   const entries = useSeriesData((s) => s.entries) ?? EMPTY_ENTRIES;
   const selected = useSelection(effectiveSelection);
+  const drillDown = useSelection((s) => s.drillDown);
   const setSelection = useSelection((s) => s.setSelection);
+  const setDrillDown = useSelection((s) => s.setDrillDown);
+  const tool = chart.tool;
+  // In drill-down mode a committed drag narrows every chart to the dragged points; a click clears it.
   const onSelect = useCallback(
-    (sel: ReadonlySet<DataIdKey>, committed: boolean) => setSelection(sel, committed, w.id),
-    [setSelection, w.id],
+    (sel: ReadonlySet<DataIdKey>, committed: boolean) => {
+      if (tool === 'drillDown') {
+        if (committed) setDrillDown(sel.size ? sel : null);
+        return;
+      }
+      setSelection(sel, committed, w.id);
+    },
+    [tool, setSelection, setDrillDown, w.id],
   );
 
   // Keyed by value: a fresh object per render would make every panel rebuild its
@@ -277,10 +293,11 @@ function SeriesChart({ window: w }: { window: WindowMeta }) {
       const x = col(ax as AxisLocation);
       const y = col(ay as AxisLocation);
       if (!(x instanceof Float64Array) || !(y instanceof Float64Array)) return;
-      out.push({ id: s.id, name: s.name, x, y, dataIds: data.dataIds, marker: s.marker });
+      const spec = { id: s.id, name: s.name, x, y, dataIds: data.dataIds, marker: s.marker };
+      out.push(drillDown ? filterSeriesSpec(spec, drillDown) : spec);
     });
     return out;
-  }, [chart.series, chart.axes, w.type, readyData]);
+  }, [chart.series, chart.axes, w.type, readyData, drillDown]);
 
   const confirming = chart.series.find((s) => entries[s.id]?.status === 'confirm');
   if (confirming) {

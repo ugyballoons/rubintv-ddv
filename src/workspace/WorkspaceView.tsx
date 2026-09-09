@@ -1,4 +1,6 @@
+import { useEffect } from 'react';
 import { Rnd } from 'react-rnd';
+import { useSelection } from '../store/selection';
 import type { DdvClient } from '../protocol/client';
 import { useWorkspace } from '../store/workspace';
 import { WindowFrame } from './WindowFrame';
@@ -13,11 +15,27 @@ export function WorkspaceView({ client }: { client: DdvClient }) {
   const resizeWindow = useWorkspace((s) => s.resizeWindow);
   const focusWindow = useWorkspace((s) => s.focusWindow);
   const list = Object.values(windows);
+  const drillDown = useSelection((s) => s.drillDown);
+  const setDrillDown = useSelection((s) => s.setDrillDown);
+  useEffect(() => {
+    if (!drillDown) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setDrillDown(null);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [drillDown, setDrillDown]);
 
   return (
     <div className="workspace" data-testid="workspace">
       {list.length === 0 && (
         <div className="empty">Select an instrument, then add a chart from the toolbar.</div>
+      )}
+      {drillDown && (
+        <div className="drill-banner" role="status">
+          Drilled down to {drillDown.size.toLocaleString()} rows in every chart ·{' '}
+          <button onClick={() => setDrillDown(null)}>reset (Esc)</button>
+        </div>
       )}
       {list.map((w) => (
         <Rnd

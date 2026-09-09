@@ -380,3 +380,42 @@ button.danger {
   border-radius: 5px;
   display: inline-block;
 }
+.tool-switch {
+  display: inline-flex;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  overflow: hidden;
+}
+.tool-switch button {
+  border: none;
+  border-radius: 0;
+  padding: 2px 8px;
+}
+.tool-switch button.on {
+  background: var(--accent);
+  color: #fff;
+}
+.drill-banner {
+  position: absolute;
+  top: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 5000;
+  background: var(--warn);
+  color: #fff;
+  padding: 4px 12px;
+  border-radius: 14px;
+  font-size: 13px;
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+.drill-banner button {
+  border: 1px solid rgba(255, 255, 255, 0.6);
+  background: transparent;
+  color: #fff;
+  border-radius: 10px;
+  padding: 0 8px;
+  font-size: 12px;
+  cursor: pointer;
+}
