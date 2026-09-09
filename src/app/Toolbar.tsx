@@ -6,7 +6,10 @@ import { useWorkspace } from '../store/workspace';
 import { useSeriesData } from '../store/seriesData';
 import { useSelection } from '../store/selection';
 import { APP_VERSION } from '../config';
+import { useState } from 'react';
 import { Menu } from './Menu';
+import { QueryEditor } from '../query/QueryEditor';
+import { describe as describeQuery } from '../model/query';
 import { WorkspaceMenu } from './WorkspaceMenu';
 
 /** Connection dot: red disconnected, yellow connected without an instrument, green ready. */
@@ -42,6 +45,8 @@ export function Toolbar({ client }: { client: DdvClient }) {
   const selectedCount = useSelection((s) => s.selected.size);
   const clearSelection = useSelection((s) => s.clearSelection);
   const hasWindows = Object.keys(windows).length > 0;
+  const query = useWorkspace((s) => s.globalQuery.query);
+  const [queryOpen, setQueryOpen] = useState(false);
 
   const changeInstrument = async (name: string | null) => {
     if (hasWindows && !window.confirm('Changing the instrument clears the workspace. Continue?'))
@@ -89,6 +94,26 @@ export function Toolbar({ client }: { client: DdvClient }) {
           onChange={(e) => setGlobalQuery({ dayObs: e.target.value || null })}
         />
       </label>
+      <button
+        onClick={() => setQueryOpen(true)}
+        disabled={!instrument?.database}
+        title={query ? describeQuery(query) : 'Filter every chart that uses the global query'}
+        style={query ? { borderColor: 'var(--accent)', color: 'var(--accent)' } : undefined}
+      >
+        Global query{query ? ' ●' : ''}
+      </button>
+      {queryOpen && instrument && (
+        <QueryEditor
+          instrument={instrument}
+          initial={query}
+          title="Global query"
+          onCancel={() => setQueryOpen(false)}
+          onAccept={(q) => {
+            setGlobalQuery({ query: q });
+            setQueryOpen(false);
+          }}
+        />
+      )}
       <button
         onClick={clearSelection}
         disabled={selectedCount === 0}

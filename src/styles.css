@@ -255,3 +255,124 @@ button.danger {
   justify-content: flex-end;
   margin-top: 10px;
 }
+.query-dialog {
+  min-width: 640px;
+}
+.qroots {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 50vh;
+  overflow: auto;
+  margin-bottom: 10px;
+}
+.qnode {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+}
+.qgroup {
+  flex: 1;
+  border-left: 3px solid var(--accent);
+  padding: 4px 8px;
+  background: var(--accent-soft);
+  border-radius: 0 4px 4px 0;
+}
+.qnode.depth-1 > .qgroup {
+  background: var(--bg-2);
+  border-left-color: var(--muted);
+}
+.qchildren {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 4px;
+  padding-left: 8px;
+}
+.qrow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.qcondition {
+  flex: 1;
+  padding: 3px 6px;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+}
+.qvalue {
+  width: 90px;
+  font: inherit;
+  font-size: 13px;
+}
+.qfield {
+  font-size: 12px;
+  background: var(--code-bg, var(--bg-2));
+  padding: 1px 5px;
+  border-radius: 3px;
+}
+.qadd {
+  border-top: 1px solid var(--line);
+  padding-top: 8px;
+}
+.qcombine {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+  margin-left: 8px;
+  font-size: 13px;
+}
+.meta.warn {
+  color: var(--warn);
+}
+.dialog .buttons .meta {
+  margin-right: auto;
+}
+.series-dialog {
+  min-width: 520px;
+}
+.dialog .field {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 6px 0;
+}
+.dialog .field > span:first-child {
+  width: 90px;
+  color: var(--ink-2);
+  font-size: 13px;
+}
+.dialog .field select,
+.dialog .field input[type='text'],
+.dialog .field input:not([type]) {
+  font: inherit;
+  font-size: 13px;
+}
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  align-items: center;
+}
+.legend button {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  border: 1px solid transparent;
+  background: none;
+  padding: 1px 6px;
+  border-radius: 3px;
+  font-size: 12px;
+  cursor: pointer;
+}
+.legend button:hover {
+  border-color: var(--line);
+}
+.legend .swatch {
+  width: 10px;
+  height: 10px;
+  border-radius: 5px;
+  display: inline-block;
+}
