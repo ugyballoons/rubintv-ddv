@@ -216,6 +216,10 @@ input[type='checkbox'] {
   font-size: 13px;
   color: var(--ink-2);
 }
+.toolbar button .count {
+  font-variant-numeric: tabular-nums;
+  font-size: 12px;
+}
 .toolbar .spacer {
   margin-left: auto;
   flex: 0 1 auto;

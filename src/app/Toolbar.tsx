@@ -136,6 +136,8 @@ export function Toolbar({ client }: { client: DdvClient }) {
       </button>
       <span className="sep" />
       <button
+        className="icon"
+        aria-label="Copy"
         onClick={() => {
           const ids = [...useSelection.getState().selected].map((k) => parseDataIdKey(k));
           void navigator.clipboard
@@ -152,23 +154,25 @@ export function Toolbar({ client }: { client: DdvClient }) {
         title="Copy the selected exposures to the clipboard as (dayObs, seqNum) pairs"
       >
         <Icon name="copy" />
-        Copy
       </button>
       <button
+        className="icon"
+        aria-label={`Clear selection${selectedCount ? ` (${selectedCount.toLocaleString()})` : ''}`}
         onClick={clearSelection}
         disabled={selectedCount === 0}
         title="Clear the selection in every chart"
       >
         <Icon name="clear" />
-        Clear selection{selectedCount ? ` (${selectedCount.toLocaleString()})` : ''}
+        {selectedCount ? <span className="count">{selectedCount.toLocaleString()}</span> : null}
       </button>
       <button
+        className="icon"
+        aria-label="Refresh"
         onClick={requestReloadAll}
         disabled={!hasWindows}
-        title="Fetch every chart's data again"
+        title="Refresh: fetch every chart's data again"
       >
         <Icon name="sync" />
-        Refresh
       </button>
       {notice && (
         <span className="meta notice" role="status">
@@ -179,8 +183,10 @@ export function Toolbar({ client }: { client: DdvClient }) {
         v{APP_VERSION}
       </span>
       <button
-        className="danger"
+        className="icon danger"
+        aria-label="Clear workspace"
         disabled={!hasWindows}
+        title="Clear workspace: remove every window"
         onClick={() => {
           if (window.confirm('Remove every window from the workspace?')) {
             clearWorkspace();
@@ -190,7 +196,6 @@ export function Toolbar({ client }: { client: DdvClient }) {
         }}
       >
         <Icon name="trash" />
-        Clear workspace
       </button>
       {queryOpen && instrument && (
         <QueryEditor
