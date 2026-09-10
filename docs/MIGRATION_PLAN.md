@@ -355,6 +355,7 @@ phase 2 if a second person is available.
 | 2026-09-09 | 4      | Remote file dialog over the websocket (browse, new folder, rename, duplicate, delete, save, load) wired into the Workspace menu.                                                                                                                                                |
 | 2026-09-10 | 1–3    | Verified against the real consdb through the user's remote analysis-service worker: LSSTCam schema and geometry, night 2026-07-13 (810 visits) in scatter and histogram, focal plane from ccdvisit1_quicklook.psf_sigma, selection-driven focal-plane reload.                   |
 | 2026-09-10 | polish | Playwright e2e suite (15 tests) in the repo; tooltips and coordinate readout; reset axes, sync, copy selection, leave-page guard, X/Y zoom keys; datetime and categorical axes; design pass (tokens, icons, window chrome, dialogs in a portal). Verified on real LSSTCam data. |
+| 2026-09-10 | review | Night picker calendar (nights with data, single/range/set), global Refresh, histogram inner bars for linked selections, instrument loading indicator, detector selector fit, no-rows message, Copy feedback, YYYY-MM-DD dates. 18 e2e tests.                                    |
 
 ## 6. Backend and protocol changes to make alongside
 
