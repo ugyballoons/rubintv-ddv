@@ -84,19 +84,27 @@ export function useSeriesLoader(
       }
     : null;
   const requestKey = params ? JSON.stringify(params) : null;
+  const reloadNonce = useSeriesData((s) => s.reload[series.id] ?? 0);
 
   useEffect(() => {
     if (!params || !requestKey || columns.length === 0) return;
     const entry = useSeriesData.getState().entries[series.id];
-    if (entry?.requestKey === requestKey && entry.status === 'ready') return;
-    const running = inflight.get(series.id);
-    if (running?.key === requestKey) return; // join the fetch already in progress
+    const forced = reloadNonce !== lastNonce.get(series.id);
+    lastNonce.set(series.id, reloadNonce);
+    if (!forced) {
+      if (entry?.requestKey === requestKey && entry.status === 'ready') return;
+      const running = inflight.get(series.id);
+      if (running?.key === requestKey) return; // join the fetch already in progress
+    }
     inflight.set(series.id, { key: requestKey, continueLoad: null });
     void fetchSeries(client, series.id, requestKey, params);
     // requestKey captures every input that should trigger a reload.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [client, series.id, requestKey]);
+  }, [client, series.id, requestKey, reloadNonce]);
 }
+
+/** Last reload nonce seen per series, so a bump forces one refetch. */
+const lastNonce = new Map<string, number>();
 
 export function confirmLoad(seriesId: string): void {
   inflight.get(seriesId)?.continueLoad?.();

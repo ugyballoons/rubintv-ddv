@@ -12,6 +12,7 @@ import {
 } from 'rubin-charts';
 import { EChart } from './EChart';
 import type { EChartsInstance } from './echarts';
+import { ChartTooltip, fmt, type TooltipData } from './ChartTooltip';
 
 export interface HistogramSeries {
   readonly id: string;
@@ -25,9 +26,13 @@ interface Props {
   series: readonly HistogramSeries[];
   mainAxis: AxisSpec;
   nBins: number;
+  resetToken?: number;
+  registryId?: string;
   onSelect(ids: ReadonlySet<DataIdKey>, committed: boolean): void;
   onInfo?(msg: string): void;
 }
+
+type BinHit = { series: string; bin: number } | null;
 
 /**
  * Histogram with the Flutter bin-selection semantics: click, cmd/ctrl-click
@@ -35,14 +40,23 @@ interface Props {
  * The state machine lives in rubin-charts; this component maps mouse and key
  * events to it and resolves selected bins to DataIds for the shared selection.
  */
-export function HistogramPanel({ series, mainAxis, nBins, onSelect, onInfo }: Props) {
+export function HistogramPanel({
+  series,
+  mainAxis,
+  nBins,
+  registryId,
+  resetToken,
+  onSelect,
+  onInfo,
+}: Props) {
   const chart = useRef<EChartsInstance | null>(null);
-  const [binSel, setBinSel] = useState<BinSelectionState>(emptyBinSelection);
   const host = useRef<HTMLDivElement>(null);
-  // The click handler is registered once; it reads the latest hit-test through this ref.
-  const binAtPixelRef = useRef<(px: number, py: number) => { series: string; bin: number } | null>(
-    () => null,
-  );
+  const [binSel, setBinSel] = useState<BinSelectionState>(emptyBinSelection);
+  const [tooltip, setTooltip] = useState<TooltipData | null>(null);
+  const tooltipTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Handlers are registered once; they read the latest hit-test through these refs.
+  const binAtPixelRef = useRef<(px: number, py: number) => BinHit>(() => null);
+  const tooltipAtRef = useRef<(px: number, py: number) => TooltipData | null>(() => null);
 
   const input = useMemo(
     () => ({
@@ -57,6 +71,10 @@ export function HistogramPanel({ series, mainAxis, nBins, onSelect, onInfo }: Pr
     () => buildHistogramOption({ ...input, selected: binSel.selected }, bins),
     [input, bins, binSel],
   );
+  const binLabel = (b: number) =>
+    mainAxis.kind === 'category' && mainAxis.categories
+      ? (mainAxis.categories[b] ?? String(b))
+      : `${fmt(bins.edges[b])} – ${fmt(bins.edges[b + 1])}`;
 
   // Resolve the selected bins to DataIds whenever the bin selection changes.
   const lastEmitted = useRef<BinSelectionState>(emptyBinSelection);
@@ -76,7 +94,7 @@ export function HistogramPanel({ series, mainAxis, nBins, onSelect, onInfo }: Pr
   }, [binSel, bins, series, onSelect, onInfo]);
 
   const binAtPixel = useCallback(
-    (px: number, py: number): { series: string; bin: number } | null => {
+    (px: number, py: number): BinHit => {
       const c = chart.current;
       if (!c) return null;
       const vertical = mainAxis.location === 'bottom' || mainAxis.location === 'top';
@@ -88,7 +106,7 @@ export function HistogramPanel({ series, mainAxis, nBins, onSelect, onInfo }: Pr
       let b = edges.findIndex((e, i) => i < edges.length - 1 && v >= e && v < edges[i + 1]);
       if (b < 0) b = edges.length - 2;
       // Series are drawn in order, so the last one whose bar reaches the point is on top.
-      let hit: { series: string; bin: number } | null = null;
+      let hit: BinHit = null;
       for (const s of series) {
         const counts = bins.perSeries.get(s.id)?.counts;
         if (counts && count <= counts[b]) hit = { series: s.id, bin: b };
@@ -97,26 +115,64 @@ export function HistogramPanel({ series, mainAxis, nBins, onSelect, onInfo }: Pr
     },
     [bins, mainAxis.location, series],
   );
-
   binAtPixelRef.current = binAtPixel;
+  tooltipAtRef.current = (px, py) => {
+    const hit = binAtPixel(px, py);
+    if (!hit) return null;
+    const s = series.find((x) => x.id === hit.series)!;
+    const counts = bins.perSeries.get(s.id)!.counts;
+    return {
+      x: px,
+      y: py,
+      title: s.name,
+      entries: [
+        { label: 'bin', value: binLabel(hit.bin) },
+        { label: 'count', value: counts[hit.bin].toLocaleString() },
+      ],
+    };
+  };
 
   const onReady = useCallback((c: EChartsInstance) => {
     chart.current = c;
-    c.getZr().on('click', (e) => {
+    const zr = c.getZr();
+    zr.on('click', (e) => {
       host.current?.focus();
       const raw = e.event as MouseEvent;
-      const bin = binAtPixelRef.current(e.offsetX, e.offsetY);
       setBinSel((s) =>
-        clickBin(s, bin, { shift: raw.shiftKey, cmdCtrl: raw.metaKey || raw.ctrlKey }),
+        clickBin(s, binAtPixelRef.current(e.offsetX, e.offsetY), {
+          shift: raw.shiftKey,
+          cmdCtrl: raw.metaKey || raw.ctrlKey,
+        }),
       );
     });
+    zr.on('mousemove', (e) => {
+      if (tooltipTimer.current) clearTimeout(tooltipTimer.current);
+      setTooltip(null);
+      const px = e.offsetX;
+      const py = e.offsetY;
+      tooltipTimer.current = setTimeout(() => setTooltip(tooltipAtRef.current(px, py)), 500);
+    });
+    zr.on('globalout', () => {
+      if (tooltipTimer.current) clearTimeout(tooltipTimer.current);
+      setTooltip(null);
+    });
   }, []);
+
+  useEffect(
+    () => () => {
+      if (tooltipTimer.current) clearTimeout(tooltipTimer.current);
+    },
+    [],
+  );
 
   const onKeyDown = (e: React.KeyboardEvent) => {
     if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
     e.preventDefault();
-    const key = e.key === 'ArrowLeft' ? 'left' : 'right';
-    setBinSel((s) => navigateBins(s, key, nBins, { shift: e.shiftKey }));
+    setBinSel((s) =>
+      navigateBins(s, e.key === 'ArrowLeft' ? 'left' : 'right', bins.edges.length - 1, {
+        shift: e.shiftKey,
+      }),
+    );
   };
 
   return (
@@ -125,9 +181,10 @@ export function HistogramPanel({ series, mainAxis, nBins, onSelect, onInfo }: Pr
       tabIndex={0}
       onKeyDown={onKeyDown}
       aria-label={`histogram of ${series.map((s) => s.name).join(', ')}`}
-      style={{ width: '100%', height: '100%', outline: 'none' }}
+      style={{ width: '100%', height: '100%', outline: 'none', position: 'relative' }}
     >
-      <EChart option={option} onReady={onReady} />
+      <EChart option={option} resetToken={resetToken} registryId={registryId} onReady={onReady} />
+      <ChartTooltip data={tooltip} />
     </div>
   );
 }

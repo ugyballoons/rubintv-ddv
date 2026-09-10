@@ -20,6 +20,9 @@ import { PolarPanel } from '../charts/PolarPanel';
 import { BoxPanel } from '../charts/BoxPanel';
 import { SeriesEditor } from './SeriesEditor';
 import { AxisEditor } from './AxisEditor';
+import { fmt } from '../charts/ChartTooltip';
+import { axisFor, toPlottable, type PlottableColumn } from '../model/columnData';
+import type { AxisConfig } from '../model/workspace';
 
 export function ChartWindow({ window: w, client }: { window: WindowMeta; client: DdvClient }) {
   const chart = w.chart!;
@@ -28,6 +31,9 @@ export function ChartWindow({ window: w, client }: { window: WindowMeta; client:
   const removeData = useSeriesData((s) => s.remove);
   const [editing, setEditing] = useState<{ series: SeriesConfig; isNew: boolean } | null>(null);
   const [axesOpen, setAxesOpen] = useState(false);
+  const [resetToken, setResetToken] = useState(0);
+  const requestReload = useSeriesData((s) => s.requestReload);
+  const [hover, setHover] = useState<{ x: number; y: number } | null>(null);
 
   const newSeries = (): SeriesConfig | null => {
     if (!instrument?.database) return null;
@@ -127,6 +133,18 @@ export function ChartWindow({ window: w, client }: { window: WindowMeta; client:
         <button onClick={() => setAxesOpen(true)} title="Axis labels, scales and directions">
           axes…
         </button>
+        <button
+          onClick={() => setResetToken((t) => t + 1)}
+          title="Reset pan and zoom to fit the data"
+        >
+          reset axes
+        </button>
+        <button
+          onClick={() => chart.series.forEach((s) => requestReload(s.id))}
+          title="Fetch this chart's data again"
+        >
+          sync
+        </button>
         {(w.type === 'histogram' || w.type === 'box') && (
           <label>
             bins
@@ -163,10 +181,12 @@ export function ChartWindow({ window: w, client }: { window: WindowMeta; client:
         {chart.series.length === 0 ? (
           <div className="centered-note">Add a series to plot.</div>
         ) : (
-          <SeriesChart window={w} />
+          <SeriesChart window={w} resetToken={resetToken} onHover={setHover} />
         )}
       </div>
-      {chart.series.length > 0 && <WindowStatus seriesIds={chart.series.map((s) => s.id)} />}
+      {chart.series.length > 0 && (
+        <WindowStatus seriesIds={chart.series.map((s) => s.id)} hover={hover} axes={chart.axes} />
+      )}
       {axesOpen && (
         <AxisEditor
           axes={chart.axes}
@@ -206,7 +226,15 @@ function SeriesLoader({
   return null;
 }
 
-function WindowStatus({ seriesIds }: { seriesIds: string[] }) {
+function WindowStatus({
+  seriesIds,
+  hover,
+  axes,
+}: {
+  seriesIds: string[];
+  hover: { x: number; y: number } | null;
+  axes: readonly AxisConfig[];
+}) {
   const entries = useSeriesData((s) => s.entries);
   const parts = seriesIds.map((id) => {
     const e = entries[id] ?? idleEntry;
@@ -222,6 +250,12 @@ function WindowStatus({ seriesIds }: { seriesIds: string[] }) {
   return (
     <div className="window-status" data-testid="chart-status">
       <span className={hasError ? 'error' : undefined}>{parts.join(' · ')}</span>
+      {hover && (
+        <span className="coords">
+          {axes[0]?.label ?? 'x'} {fmt(hover.x)}
+          {axes[1] && ` · ${axes[1].label} ${fmt(hover.y)}`}
+        </span>
+      )}
     </div>
   );
 }
@@ -238,9 +272,18 @@ function useStableArray<T>(next: readonly T[]): readonly T[] {
 }
 
 /** Renders the panel for the window type with every series whose data is ready. */
-function SeriesChart({ window: w }: { window: WindowMeta }) {
+function SeriesChart({
+  window: w,
+  resetToken,
+  onHover,
+}: {
+  window: WindowMeta;
+  resetToken: number;
+  onHover(c: { x: number; y: number } | null): void;
+}) {
   const chart = w.chart!;
   const ids = chart.series.map((s) => s.id);
+  const instrument = useWorkspace((s) => s.instrument);
   const entries = useSeriesData((s) => s.entries) ?? EMPTY_ENTRIES;
   const selected = useSelection(effectiveSelection);
   const drillDown = useSelection((s) => s.drillDown);
@@ -279,25 +322,55 @@ function SeriesChart({ window: w }: { window: WindowMeta }) {
   const readyData = useStableArray(
     ids.map((id) => (entries[id]?.status === 'ready' ? entries[id].data : null)),
   );
-  const specs = useMemo<SeriesSpec[]>(() => {
-    const out: SeriesSpec[] = [];
-    const [ax, ay] =
-      w.type === 'histogram' ? ['bottom', 'bottom'] : chart.axes.map((a) => a.location);
+  const columnKind = (ref: { name: string; schema: string }) =>
+    instrument?.tables.find((t) => t.name === ref.schema)?.columns.find((c) => c.name === ref.name)
+      ?.kind ?? 'number';
+  const [ax, ay] =
+    w.type === 'histogram'
+      ? (['bottom', 'bottom'] as const)
+      : (chart.axes.map((a) => a.location) as [AxisLocation, AxisLocation]);
+  const built = useMemo(() => {
+    const specs: SeriesSpec[] = [];
+    let xCol: PlottableColumn | undefined;
+    let yCol: PlottableColumn | undefined;
     chart.series.forEach((s, k) => {
       const data = readyData[k];
       if (!data) return;
-      const col = (loc: AxisLocation) => {
+      const col = (loc: AxisLocation): PlottableColumn | undefined => {
         const ref = s.fields[loc];
-        return ref ? data.columns[columnRefId(ref)] : undefined;
+        const raw = ref ? data.columns[columnRefId(ref)] : undefined;
+        return raw && ref ? toPlottable(raw, columnKind(ref)) : undefined;
       };
-      const x = col(ax as AxisLocation);
-      const y = col(ay as AxisLocation);
-      if (!(x instanceof Float64Array) || !(y instanceof Float64Array)) return;
-      const spec = { id: s.id, name: s.name, x, y, dataIds: data.dataIds, marker: s.marker };
-      out.push(drillDown ? filterSeriesSpec(spec, drillDown) : spec);
+      const x = col(ax);
+      const y = col(ay);
+      if (!x || !y) return;
+      // Axis kinds and category labels come from the first series that has data.
+      xCol ??= x;
+      yCol ??= y;
+      const spec = {
+        id: s.id,
+        name: s.name,
+        x: x.values,
+        y: y.values,
+        dataIds: data.dataIds,
+        marker: s.marker,
+      };
+      specs.push(drillDown ? filterSeriesSpec(spec, drillDown) : spec);
     });
-    return out;
-  }, [chart.series, chart.axes, w.type, readyData, drillDown]);
+    return { specs, xCol, yCol };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [chart.series, chart.axes, w.type, readyData, drillDown, instrument]);
+  const specs = built.specs;
+  const xAxisSpec = useMemo(
+    () =>
+      axisFor(axisSpecs[ax], built.xCol, !!chart.axes.find((a) => a.location === ax)?.mjdLabels),
+    [axisSpecs, ax, built.xCol, chart.axes],
+  );
+  const yAxisSpec = useMemo(
+    () =>
+      axisFor(axisSpecs[ay], built.yCol, !!chart.axes.find((a) => a.location === ay)?.mjdLabels),
+    [axisSpecs, ay, built.yCol, chart.axes],
+  );
 
   const confirming = chart.series.find((s) => entries[s.id]?.status === 'confirm');
   if (confirming) {
@@ -330,6 +403,9 @@ function SeriesChart({ window: w }: { window: WindowMeta }) {
     case 'cartesianScatter':
       return (
         <ScatterPanel
+          registryId={w.id}
+          resetToken={resetToken}
+          onHover={onHover}
           series={specs}
           xAxis={axisSpec('bottom')}
           yAxis={axisSpec('left')}
@@ -340,6 +416,8 @@ function SeriesChart({ window: w }: { window: WindowMeta }) {
     case 'polarScatter':
       return (
         <PolarPanel
+          registryId={w.id}
+          resetToken={resetToken}
           series={specs}
           radialAxis={axisSpec('radial')}
           angularAxis={axisSpec('angular')}
@@ -349,6 +427,8 @@ function SeriesChart({ window: w }: { window: WindowMeta }) {
     case 'histogram':
       return (
         <HistogramPanel
+          registryId={w.id}
+          resetToken={resetToken}
           series={specs.map((s) => ({
             id: s.id,
             name: s.name,
@@ -356,7 +436,7 @@ function SeriesChart({ window: w }: { window: WindowMeta }) {
             dataIds: s.dataIds,
             color: s.marker.color,
           }))}
-          mainAxis={axisSpec('bottom')}
+          mainAxis={xAxisSpec}
           nBins={chart.nBins}
           onSelect={onSelect}
         />
@@ -364,6 +444,8 @@ function SeriesChart({ window: w }: { window: WindowMeta }) {
     case 'box':
       return (
         <BoxPanel
+          registryId={w.id}
+          resetToken={resetToken}
           series={specs.map((s) => ({
             id: s.id,
             name: s.name,
@@ -372,8 +454,8 @@ function SeriesChart({ window: w }: { window: WindowMeta }) {
             dataIds: s.dataIds,
             color: s.marker.color,
           }))}
-          mainAxis={axisSpec('bottom')}
-          crossAxis={axisSpec('left')}
+          mainAxis={xAxisSpec}
+          crossAxis={yAxisSpec}
           nBins={chart.nBins}
           onSelect={onSelect}
         />

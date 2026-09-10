@@ -550,3 +550,48 @@ button.danger {
 .file-buttons {
   flex-wrap: wrap;
 }
+.chart-tooltip {
+  position: absolute;
+  z-index: 20;
+  pointer-events: none;
+  background: rgba(22, 38, 46, 0.92);
+  color: #fff;
+  border-radius: 4px;
+  padding: 6px 8px;
+  font-size: 12px;
+  min-width: 140px;
+  box-shadow: 0 4px 14px rgba(22, 38, 46, 0.25);
+}
+.chart-tooltip-title {
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+.chart-tooltip-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font-variant-numeric: tabular-nums;
+}
+.chart-tooltip-row span:first-child {
+  color: #b7c4c8;
+}
+.zoom-hint {
+  position: absolute;
+  top: 6px;
+  right: 8px;
+  font-size: 11px;
+  color: var(--accent);
+  background: var(--accent-soft);
+  padding: 1px 6px;
+  border-radius: 3px;
+  pointer-events: none;
+}
+.window-status {
+  display: flex;
+  gap: 12px;
+}
+.window-status .coords {
+  margin-left: auto;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-2);
+}

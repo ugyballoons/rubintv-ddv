@@ -5,6 +5,7 @@ import { useConnection } from '../store/connection';
 import { useWorkspace } from '../store/workspace';
 import { useSeriesData } from '../store/seriesData';
 import { useSelection } from '../store/selection';
+import { parseDataIdKey } from 'rubin-charts';
 import { APP_VERSION } from '../config';
 import { useState } from 'react';
 import { Menu } from './Menu';
@@ -125,6 +126,17 @@ export function Toolbar({ client }: { client: DdvClient }) {
           }}
         />
       )}
+      <button
+        onClick={() => {
+          const ids = [...useSelection.getState().selected].map((k) => parseDataIdKey(k));
+          const text = `[${ids.map((d) => `(${d.dayObs}, ${d.seqNum})`).join(',')}]`;
+          void navigator.clipboard.writeText(text);
+        }}
+        disabled={selectedCount === 0}
+        title="Copy the selected exposures to the clipboard as (dayObs, seqNum) pairs"
+      >
+        Copy
+      </button>
       <button
         onClick={clearSelection}
         disabled={selectedCount === 0}

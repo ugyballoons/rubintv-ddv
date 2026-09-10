@@ -17,13 +17,23 @@ interface Props {
   angularAxis: AxisSpec;
   angleUnit?: AngleUnit;
   selected: ReadonlySet<DataIdKey>;
+  resetToken?: number;
+  registryId?: string;
 }
 
 /**
  * Polar scatter that follows the shared selection. Selection *from* a polar
  * chart (sector drag) will reuse the KDBush index in (angle, radius) space.
  */
-export function PolarPanel({ series, radialAxis, angularAxis, angleUnit, selected }: Props) {
+export function PolarPanel({
+  series,
+  radialAxis,
+  angularAxis,
+  angleUnit,
+  selected,
+  registryId,
+  resetToken,
+}: Props) {
   const option = useMemo(
     () =>
       buildPolarOption({
@@ -40,5 +50,5 @@ export function PolarPanel({ series, radialAxis, angularAxis, angleUnit, selecte
     () => ({ series: [polarSelectionOverlaySeries(series, selected, angleUnit)] }),
     [series, selected, angleUnit],
   );
-  return <EChart option={option} patch={patch} />;
+  return <EChart option={option} patch={patch} resetToken={resetToken} registryId={registryId} />;
 }

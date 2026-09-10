@@ -30,7 +30,21 @@ export type WindowType =
 
 /** Page object for the DDV workspace. */
 export class App {
-  constructor(readonly page: Page) {}
+  /** Every command the app sent to the broker since the page opened. */
+  readonly sent: { name?: string; type?: string; parameters?: Record<string, any> }[] = [];
+
+  constructor(readonly page: Page) {
+    page.on('websocket', (ws) => {
+      if (!ws.url().includes('/ws/client')) return;
+      ws.on('framesent', (f) => {
+        try {
+          this.sent.push(JSON.parse(String(f.payload)));
+        } catch {
+          /* non-JSON frame */
+        }
+      });
+    });
+  }
 
   async open(instrument = 'testdb'): Promise<void> {
     await this.page.goto('./');
@@ -132,6 +146,11 @@ export class App {
 
 declare global {
   interface Window {
-    __ddv?: { save(): string; load(text: string): Promise<unknown>; state(): unknown };
+    __ddv?: {
+      save(): string;
+      load(text: string): Promise<unknown>;
+      state(): unknown;
+      chart(id: string): unknown;
+    };
   }
 }

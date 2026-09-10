@@ -22,6 +22,9 @@ export interface SeriesEntry {
 
 interface SeriesDataState {
   entries: Record<string, SeriesEntry>;
+  /** Bumped by "sync with server" to force a reload of a series. */
+  reload: Record<string, number>;
+  requestReload(seriesId: string): void;
   setEntry(seriesId: string, patch: Partial<SeriesEntry>): void;
   remove(seriesId: string): void;
   clear(): void;
@@ -37,6 +40,10 @@ const IDLE: SeriesEntry = {
 
 export const useSeriesData = create<SeriesDataState>((set) => ({
   entries: {},
+  reload: {},
+  requestReload(seriesId) {
+    set((s) => ({ reload: { ...s.reload, [seriesId]: (s.reload[seriesId] ?? 0) + 1 } }));
+  },
   setEntry(seriesId, patch) {
     set((s) => ({
       entries: { ...s.entries, [seriesId]: { ...(s.entries[seriesId] ?? IDLE), ...patch } },

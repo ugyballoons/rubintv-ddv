@@ -34,6 +34,8 @@ export interface AxisConfig {
   readonly label: string;
   readonly mapping: MappingKind;
   readonly inverted: boolean;
+  /** Datetime columns: label ticks as Modified Julian Date instead of calendar dates. */
+  readonly mjdLabels?: boolean;
 }
 
 export interface SeriesConfig {

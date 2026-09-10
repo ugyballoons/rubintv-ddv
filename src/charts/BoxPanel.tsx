@@ -27,11 +27,21 @@ interface Props {
   mainAxis: AxisSpec;
   crossAxis: AxisSpec;
   nBins: number;
+  resetToken?: number;
+  registryId?: string;
   onSelect(ids: ReadonlySet<DataIdKey>, committed: boolean): void;
 }
 
 /** Binned box chart with the same bin-selection semantics as the histogram. */
-export function BoxPanel({ series, mainAxis, crossAxis, nBins, onSelect }: Props) {
+export function BoxPanel({
+  series,
+  mainAxis,
+  crossAxis,
+  nBins,
+  registryId,
+  resetToken,
+  onSelect,
+}: Props) {
   const chart = useRef<EChartsInstance | null>(null);
   const host = useRef<HTMLDivElement>(null);
   // The click handler is registered once; it reads the latest hit-test through this ref.
@@ -129,7 +139,7 @@ export function BoxPanel({ series, mainAxis, crossAxis, nBins, onSelect }: Props
       aria-label={`box chart of ${series.map((s) => s.name).join(', ')}`}
       style={{ width: '100%', height: '100%', outline: 'none' }}
     >
-      <EChart option={option} onReady={onReady} />
+      <EChart option={option} resetToken={resetToken} registryId={registryId} onReady={onReady} />
     </div>
   );
 }

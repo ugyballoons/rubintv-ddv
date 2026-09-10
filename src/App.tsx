@@ -7,11 +7,17 @@ import { Toolbar } from './app/Toolbar';
 import { WorkspaceView } from './workspace/WorkspaceView';
 import { useWorkspace } from './store/workspace';
 import { useSelection } from './store/selection';
+import { chartRegistry } from './charts/EChart';
 
 // Dev-only hook for browser automation and debugging: window.__ddv.save() / load(text).
 declare global {
   interface Window {
-    __ddv?: { save(): string; load(text: string): Promise<unknown>; state(): unknown };
+    __ddv?: {
+      save(): string;
+      load(text: string): Promise<unknown>;
+      state(): unknown;
+      chart(id: string): unknown;
+    };
   }
 }
 
@@ -25,6 +31,20 @@ export default function App() {
       window.__ddv = {
         save: () => useWorkspace.getState().saveWorkspace(true),
         load: (text) => useWorkspace.getState().loadWorkspace(client, text),
+        chart: (id: string) => {
+          const c = chartRegistry.get(id) as unknown as
+            | {
+                getModel(): {
+                  getComponent(
+                    n: string,
+                  ): { axis: { scale: { getExtent(): number[] } } } | undefined;
+                };
+              }
+            | undefined;
+          if (!c) return null;
+          const ext = (n: string) => c.getModel().getComponent(n)?.axis.scale.getExtent() ?? null;
+          return { x: ext('xAxis'), y: ext('yAxis') };
+        },
         state: () => {
           const sel = useSelection.getState();
           const ws = useWorkspace.getState();
@@ -42,9 +62,16 @@ export default function App() {
         },
       };
     }
+    // Leaving the page discards the workspace unless it was saved.
+    const guard = (e: BeforeUnloadEvent) => {
+      if (Object.keys(useWorkspace.getState().windows).length === 0) return;
+      e.preventDefault();
+    };
+    window.addEventListener('beforeunload', guard);
     const unbind = bind(client);
     client.connect();
     return () => {
+      window.removeEventListener('beforeunload', guard);
       unbind();
       client.close();
     };

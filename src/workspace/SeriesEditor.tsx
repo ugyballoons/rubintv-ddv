@@ -32,9 +32,7 @@ export function SeriesEditor({
   const [queryOpen, setQueryOpen] = useState(false);
   const tables = instrument.tables.filter((t) => !CCD_TABLE.test(t.name));
   const columnsOf = (table: string) =>
-    tables
-      .find((t) => t.name === table)
-      ?.columns.filter((c) => c.kind === 'number' || c.kind === 'datetime') ?? [];
+    tables.find((t) => t.name === table)?.columns.filter((c) => c.kind !== 'boolean') ?? [];
 
   const setField = (location: AxisLocation, ref: ColumnRef) =>
     setDraft((d) => ({ ...d, fields: { ...d.fields, [location]: ref } }));
