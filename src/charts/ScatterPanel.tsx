@@ -55,6 +55,7 @@ export function ScatterPanel({
   onTiming,
 }: Props) {
   const chart = useRef<EChartsInstance | null>(null);
+  const host = useRef<HTMLDivElement>(null);
   const drag = useRef<Rect | null>(null);
   const frame = useRef<number | null>(null);
   const [rect, setRect] = useState<Rect | null>(null);
@@ -231,7 +232,7 @@ export function ScatterPanel({
   );
 
   return (
-    <div style={{ position: 'relative', width: '100%', height: '100%' }}>
+    <div ref={host} style={{ position: 'relative', width: '100%', height: '100%' }}>
       <EChart
         option={option}
         patch={patch}
@@ -254,7 +255,7 @@ export function ScatterPanel({
           }}
         />
       )}
-      <ChartTooltip data={tooltip} />
+      <ChartTooltip data={tooltip} host={host.current} />
       {zoomKey && <div className="zoom-hint">zoom {zoomKey} only</div>}
     </div>
   );

@@ -203,7 +203,7 @@ export function HistogramPanel({
       style={{ width: '100%', height: '100%', outline: 'none', position: 'relative' }}
     >
       <EChart option={option} resetToken={resetToken} registryId={registryId} onReady={onReady} />
-      <ChartTooltip data={tooltip} />
+      <ChartTooltip data={tooltip} host={host.current} />
     </div>
   );
 }

@@ -521,8 +521,7 @@ input[type='checkbox'] {
 
 /* ---------- chart overlays ---------- */
 .chart-tooltip {
-  position: absolute;
-  z-index: 20;
+  z-index: 4000;
   pointer-events: none;
   background: rgba(22, 38, 46, 0.92);
   color: #fff;

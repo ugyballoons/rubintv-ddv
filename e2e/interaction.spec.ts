@@ -82,3 +82,20 @@ test('datetime and categorical columns plot with time and category axes', async 
     'obs_start',
   );
 });
+
+test('tooltips stay inside the chart near its edges', async ({ app, page }) => {
+  const win = await app.addChart('Scatter plot');
+  await app.addSeries(win, { bottom: 'ra', left: 'dec' });
+  await app.waitLoaded(win);
+  const c = (await win.locator('canvas').first().boundingBox())!;
+  // points reach the right edge of the plot; hover just inside the bottom-right corner
+  await page.mouse.move(c.x + c.width * 0.84, c.y + c.height * 0.6);
+  await page.mouse.move(c.x + c.width * 0.84 + 1, c.y + c.height * 0.6 + 1);
+  const tip = page.getByRole('tooltip');
+  await expect(tip).toBeVisible({ timeout: 5_000 });
+  const t = (await tip.boundingBox())!;
+  const hostBox = (await win.locator('.window-body').boundingBox())!;
+  expect(t.x + t.width).toBeLessThanOrEqual(hostBox.x + hostBox.width + 1);
+  expect(t.y + t.height).toBeLessThanOrEqual(hostBox.y + hostBox.height + 1);
+  expect(t.x).toBeGreaterThanOrEqual(hostBox.x - 1);
+});
