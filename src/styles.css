@@ -224,10 +224,6 @@ input[type='checkbox'] {
   margin-left: auto;
   flex: 0 1 auto;
 }
-.toolbar .backend {
-  color: var(--warn);
-  font-family: var(--mono);
-}
 .toolbar .meta {
   font-size: 12px;
   color: var(--muted);
