@@ -353,6 +353,7 @@ phase 2 if a second person is available.
 | 2026-09-09 | 2     | Query model and editor (global and per-series), multiple series per chart, series editor and legend, box chart, drill-down channel with Escape reset, axis editor. Remaining from phase 2: polar sector selection, histogram partial-bin highlighting, preview throttling. |
 | 2026-09-09 | 3     | Focal plane window (SVG geometry, colorbar with editable stops, playback, CCD column editor), detector selector, Flutter-format persistence; dev worker serves a synthetic ccdexposure table and LSSTCam geometry for testdb.                                              |
 | 2026-09-09 | 4     | Remote file dialog over the websocket (browse, new folder, rename, duplicate, delete, save, load) wired into the Workspace menu.                                                                                                                                           |
+| 2026-09-10 | 1–3   | Verified against the real consdb through the user's remote analysis-service worker: LSSTCam schema and geometry, night 2026-07-13 (810 visits) in scatter and histogram, focal plane from ccdvisit1_quicklook.psf_sigma, selection-driven focal-plane reload.              |
 
 ## 6. Backend and protocol changes to make alongside
 
