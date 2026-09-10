@@ -359,17 +359,27 @@ phase 2 if a second person is available.
 
 ## 6. Backend and protocol changes to make alongside
 
-Small, and all backwards compatible with the Flutter client:
+Small, and all backwards compatible with the Flutter client. Status as of
+2026-09-10: items 1, 5 and 9 are implemented on the analysis-service branch
+`ddv-protocol-additions` (commit cebf63c, awaiting a ticket branch name and
+PR) together with `tests/test_flutter_contract.py`, which sends the exact
+JSON the Flutter client builds and asserts what its handlers read. Item 8 is
+fixed in RubinTV v3 (`deploy`, commit daeb66e). Item 2 is dropped: the
+Flutter file dialog casts `content` to a map before anything else, so a
+top-level error without `content` would crash it, and this client already
+reads `content.error`.
 
 1. Include `requestId` in `error` envelopes (`command.py`); today a failed
-   request never resolves on the client.
-2. Move file-command errors from `content.error` to a top-level `error`
-   response, or have the client check `content.error`. Today they are dropped.
+   request never resolves on the client. Done: the key is present only when
+   the command carried one. The client still routes errors globally until a
+   worker with this change is deployed.
+2. Dropped, see above. Errors stay in `content.error` for file commands.
 3. Add `date`/`datetime` to the client type map (client-side only).
 4. Fix the `ParentQuery` round trip (`toJson` writes `operator`, `fromJson`
    reads `content.operator`), so compound global queries reload. Client-side.
 5. Normalise the `left_operator` flip table keys in `query.py` to the operator
-   names actually sent (`startswith`, not `starts with`).
+   names actually sent (`startswith`, not `starts with`). Done; the spaced
+   spellings are kept as aliases.
 6. Optional: expose `get bounds` in the series editor (already implemented
    server-side, never called).
 7. Optional, later: Arrow frames for large payloads.
@@ -379,12 +389,18 @@ Small, and all backwards compatible with the Flutter client:
    delivered to whichever client is attached next, after which every reply is
    off by one and clients see timeouts. Match replies to requests by
    `requestId` and only free a worker when it actually replies. Found during
-   the phase-1 browser tests.
+   the phase-1 browser tests. Done in v3 without any wire change: the worker
+   stays busy after its client leaves and the orphaned reply is discarded, so
+   `load instrument` (sent without a requestId by the Flutter client) needs
+   no special case. `mock_server.py` still has the bug.
 9. Grouped aggregation: `load columns` with `aggregator` returns one scalar per
    column. A `group_by` parameter (for example `group_by: ["exposure.day_obs"]`
    with `aggregator: "count"`) would let the client ask for exposures per
    night in one small reply. Today the calendar loads `exposure.day_obs` for
    every row and counts client-side, about 4 MB and two seconds on LSSTCam.
+   Done server-side: with `group_by` the reply is columnar, the group columns
+   then one aggregate per requested column, ordered by the group columns.
+   The client keeps the per-row fallback until the change is deployed.
 
 ## 7. Risks
 
