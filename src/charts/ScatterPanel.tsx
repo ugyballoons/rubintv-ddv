@@ -12,7 +12,8 @@ import {
 } from 'rubin-charts';
 import { EChart } from './EChart';
 import type { EChartsInstance } from './echarts';
-import { ChartTooltip, fmt, type TooltipData } from './ChartTooltip';
+import { ChartTooltip, type TooltipData } from './ChartTooltip';
+import { fmt } from './format';
 import { useZoomAxisKey } from './zoomKeys';
 import { useLatest } from './useLatest';
 

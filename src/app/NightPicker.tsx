@@ -7,7 +7,6 @@ import {
   describeNights,
   isoToNight,
   nightList,
-  nightToDate,
   nightToIso,
   type NightSelection,
 } from '../model/nights';
@@ -246,5 +245,3 @@ export function NightPicker({ client }: { client: DdvClient }) {
     </>
   );
 }
-
-export { nightToDate };

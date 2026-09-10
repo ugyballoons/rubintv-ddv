@@ -21,7 +21,7 @@ import { BoxPanel } from '../charts/BoxPanel';
 import { SeriesEditor } from './SeriesEditor';
 import { AxisEditor } from './AxisEditor';
 import { Icon } from '../app/Icon';
-import { fmt } from '../charts/ChartTooltip';
+import { fmt } from '../charts/format';
 import { describeNights } from '../model/nights';
 import { axisFor, toPlottable, type PlottableColumn } from '../model/columnData';
 import type { AxisConfig } from '../model/workspace';

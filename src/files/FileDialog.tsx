@@ -53,10 +53,15 @@ export function FileDialog({ client, mode, content, onCancel, onDone }: Props) {
     },
     [client],
   );
+  // Initial listing; later navigation goes through navigate(), which also clears the selection.
   useEffect(() => {
-    void refresh(path);
+    void refresh([]);
+  }, [refresh]);
+  const navigate = (p: RemotePath) => {
+    setPath(p);
     setSelected(null);
-  }, [path, refresh]);
+    void refresh(p);
+  };
 
   const run = async (op: () => Promise<unknown>) => {
     setBusy(true);
@@ -100,11 +105,11 @@ export function FileDialog({ client, mode, content, onCancel, onDone }: Props) {
       >
         <h3>{mode === 'load' ? 'Load workspace from server' : 'Save workspace to server'}</h3>
         <nav className="breadcrumbs" aria-label="current folder">
-          <button onClick={() => setPath([])}>home</button>
+          <button onClick={() => navigate([])}>home</button>
           {path.map((seg, i) => (
             <span key={i}>
               <span className="meta">/</span>
-              <button onClick={() => setPath(path.slice(0, i + 1))}>{seg}</button>
+              <button onClick={() => navigate(path.slice(0, i + 1))}>{seg}</button>
             </span>
           ))}
         </nav>
@@ -117,7 +122,7 @@ export function FileDialog({ client, mode, content, onCancel, onDone }: Props) {
               role="option"
               aria-selected={selected === d}
               onClick={() => setSelected(d)}
-              onDoubleClick={() => setPath([...path, d])}
+              onDoubleClick={() => navigate([...path, d])}
             >
               <span className="icon">📁</span>
               {renaming === d ? (

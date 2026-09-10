@@ -7,7 +7,7 @@ import { Toolbar } from './app/Toolbar';
 import { WorkspaceView } from './workspace/WorkspaceView';
 import { useWorkspace } from './store/workspace';
 import { useSelection } from './store/selection';
-import { chartRegistry } from './charts/EChart';
+import { chartRegistry } from './charts/registry';
 
 // Dev-only hook for browser automation and debugging: window.__ddv.save() / load(text).
 declare global {

@@ -72,6 +72,3 @@ export function ChartTooltip({
     document.body,
   );
 }
-
-export const fmt = (v: number): string =>
-  Number.isInteger(v) ? String(v) : v.toPrecision(6).replace(/\.?0+$/, '');

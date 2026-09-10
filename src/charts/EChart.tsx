@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import type { EChartsCoreOption } from 'echarts/core';
 import { fitVerticalAxisTitles } from 'rubin-charts';
 import { echarts, type EChartsInstance } from './echarts';
+import { chartRegistry } from './registry';
 
 interface Props {
   /** Full option; applied with notMerge so removed series disappear. */
@@ -15,9 +16,6 @@ interface Props {
   registryId?: string;
   style?: React.CSSProperties;
 }
-
-/** Live ECharts instances by registry id, for the dev hook. */
-export const chartRegistry = new Map<string, EChartsInstance>();
 
 /** Thin ECharts host: owns the instance, resizes with its container, never re-creates on option change. */
 export function EChart({ option, patch, resetToken = 0, onReady, registryId, style }: Props) {
