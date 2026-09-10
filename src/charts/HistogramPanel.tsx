@@ -165,6 +165,14 @@ export function HistogramPanel({
       );
     });
     zr.on('mousemove', (e) => {
+      if (host.current) {
+        const inside = c.containPixel({ gridIndex: 0 }, [e.offsetX, e.offsetY]);
+        host.current.style.cursor = !inside
+          ? 'default'
+          : binAtPixelRef.current(e.offsetX, e.offsetY)
+            ? 'pointer'
+            : 'crosshair';
+      }
       if (tooltipTimer.current) clearTimeout(tooltipTimer.current);
       setTooltip(null);
       const px = e.offsetX;
@@ -172,6 +180,7 @@ export function HistogramPanel({
       tooltipTimer.current = setTimeout(() => setTooltip(tooltipAtRef.current(px, py)), 500);
     });
     zr.on('globalout', () => {
+      if (host.current) host.current.style.cursor = 'default';
       if (tooltipTimer.current) clearTimeout(tooltipTimer.current);
       setTooltip(null);
     });

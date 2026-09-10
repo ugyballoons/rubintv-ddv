@@ -111,6 +111,18 @@ export function BoxPanel({
 
   const onReady = useCallback((c: EChartsInstance) => {
     chart.current = c;
+    c.getZr().on('mousemove', (e) => {
+      if (!host.current) return;
+      const inside = c.containPixel({ gridIndex: 0 }, [e.offsetX, e.offsetY]);
+      host.current.style.cursor = !inside
+        ? 'default'
+        : binAtPixelRef.current(e.offsetX, e.offsetY)
+          ? 'pointer'
+          : 'crosshair';
+    });
+    c.getZr().on('globalout', () => {
+      if (host.current) host.current.style.cursor = 'default';
+    });
     c.getZr().on('click', (e) => {
       host.current?.focus();
       const raw = e.event as MouseEvent;

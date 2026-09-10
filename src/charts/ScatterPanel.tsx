@@ -130,7 +130,9 @@ export function ScatterPanel({
     (px: number, py: number) => {
       const c = chart.current;
       if (!c) return;
-      if (!c.containPixel({ gridIndex: 0 }, [px, py])) {
+      const inside = c.containPixel({ gridIndex: 0 }, [px, py]);
+      if (host.current) host.current.style.cursor = inside ? 'crosshair' : 'default';
+      if (!inside) {
         onHoverRef.current?.(null);
         setTooltip(null);
         return;
@@ -217,6 +219,7 @@ export function ScatterPanel({
     };
     zr.on('mouseup', finish);
     zr.on('globalout', () => {
+      if (host.current) host.current.style.cursor = 'default';
       finish();
       if (tooltipTimer.current) clearTimeout(tooltipTimer.current);
       setTooltip(null);

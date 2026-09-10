@@ -99,3 +99,31 @@ test('tooltips stay inside the chart near its edges', async ({ app, page }) => {
   expect(t.y + t.height).toBeLessThanOrEqual(hostBox.y + hostBox.height + 1);
   expect(t.x).toBeGreaterThanOrEqual(hostBox.x - 1);
 });
+
+test('the cursor is a crosshair over the data and a pointer over histogram bars', async ({
+  app,
+  page,
+}) => {
+  const scatter = await app.addChart('Scatter plot');
+  await app.addSeries(scatter, { bottom: 'ra', left: 'dec' });
+  await app.waitLoaded(scatter);
+  const cursorOf = (win: typeof scatter) =>
+    win
+      .locator('.window-body > div')
+      .first()
+      .evaluate((el) => (el as HTMLElement).style.cursor);
+  const c = (await scatter.locator('canvas').first().boundingBox())!;
+  await page.mouse.move(c.x + c.width * 0.5, c.y + c.height * 0.5);
+  await expect.poll(() => cursorOf(scatter)).toBe('crosshair');
+  await page.mouse.move(c.x + 8, c.y + 8); // margin outside the plot area
+  await expect.poll(() => cursorOf(scatter)).toBe('default');
+  const hist = await app.addChart('Histogram');
+  await app.moveWindow(hist, 700, -20);
+  await app.addSeries(hist, { bottom: 'ra' });
+  await app.waitLoaded(hist);
+  const h = (await hist.locator('canvas').first().boundingBox())!;
+  await page.mouse.move(h.x + 60 + (h.width - 80) * 0.12, h.y + h.height - 60);
+  await expect.poll(() => cursorOf(hist)).toBe('pointer');
+  await page.mouse.move(h.x + h.width * 0.5, h.y + 40); // above the bars, inside the plot
+  await expect.poll(() => cursorOf(hist)).toBe('crosshair');
+});
