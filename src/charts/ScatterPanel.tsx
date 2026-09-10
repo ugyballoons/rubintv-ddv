@@ -14,6 +14,7 @@ import { EChart } from './EChart';
 import type { EChartsInstance } from './echarts';
 import { ChartTooltip, fmt, type TooltipData } from './ChartTooltip';
 import { useZoomAxisKey } from './zoomKeys';
+import { useLatest } from './useLatest';
 
 interface Props {
   series: readonly SeriesSpec[];
@@ -63,12 +64,8 @@ export function ScatterPanel({
   const tooltipTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const zoomKey = useZoomAxisKey();
   // ECharts handlers are registered once; they read the latest callbacks through these refs.
-  const selectRef = useRef<(r: Rect, committed: boolean) => void>(() => {});
-  const hoverRef = useRef<(px: number, py: number) => void>(() => {});
-  const onSelectRef = useRef(onSelect);
-  onSelectRef.current = onSelect;
-  const onHoverRef = useRef(onHover);
-  onHoverRef.current = onHover;
+  const onSelectRef = useLatest(onSelect);
+  const onHoverRef = useLatest(onHover);
 
   const option = useMemo(
     () => buildScatterOption({ series, xAxis, yAxis, selected: new Set(), drillDown: null }),
@@ -124,7 +121,7 @@ export function ScatterPanel({
     },
     [indexes, series, onSelect, onTiming],
   );
-  selectRef.current = select;
+  const selectRef = useLatest(select);
 
   const hover = useCallback(
     (px: number, py: number) => {
@@ -174,58 +171,61 @@ export function ScatterPanel({
         });
       }, TOOLTIP_DELAY_MS);
     },
-    [indexes, series, xAxis.label, yAxis.label, xMap, yMap],
+    [indexes, series, xAxis.label, yAxis.label, xMap, yMap, onHoverRef],
   );
-  hoverRef.current = hover;
+  const hoverRef = useLatest(hover);
 
-  const onReady = useCallback((c: EChartsInstance) => {
-    chart.current = c;
-    const zr = c.getZr();
-    zr.on('mousedown', (e) => {
-      const raw = e.event as MouseEvent;
-      if (raw.shiftKey || raw.button !== 0) return;
-      drag.current = { x0: e.offsetX, y0: e.offsetY, x1: e.offsetX, y1: e.offsetY };
-      setTooltip(null);
-    });
-    // Mouse events can arrive faster than frames; coalesce previews to one per frame.
-    zr.on('mousemove', (e) => {
-      if (!drag.current) {
-        hoverRef.current(e.offsetX, e.offsetY);
-        return;
-      }
-      drag.current = { ...drag.current, x1: e.offsetX, y1: e.offsetY };
-      if (frame.current !== null) return;
-      frame.current = requestAnimationFrame(() => {
-        frame.current = null;
-        if (!drag.current) return;
-        setRect(drag.current);
-        selectRef.current(drag.current, false);
+  const onReady = useCallback(
+    (c: EChartsInstance) => {
+      chart.current = c;
+      const zr = c.getZr();
+      zr.on('mousedown', (e) => {
+        const raw = e.event as MouseEvent;
+        if (raw.shiftKey || raw.button !== 0) return;
+        drag.current = { x0: e.offsetX, y0: e.offsetY, x1: e.offsetX, y1: e.offsetY };
+        setTooltip(null);
       });
-    });
-    const finish = () => {
-      const r = drag.current;
-      drag.current = null;
-      if (frame.current !== null) {
-        cancelAnimationFrame(frame.current);
-        frame.current = null;
-      }
-      setRect(null);
-      if (!r) return;
-      if (Math.abs(r.x1 - r.x0) < 3 && Math.abs(r.y1 - r.y0) < 3) {
-        onSelectRef.current(new Set(), true); // click on empty space clears
-        return;
-      }
-      selectRef.current(r, true);
-    };
-    zr.on('mouseup', finish);
-    zr.on('globalout', () => {
-      if (host.current) host.current.style.cursor = 'default';
-      finish();
-      if (tooltipTimer.current) clearTimeout(tooltipTimer.current);
-      setTooltip(null);
-      onHoverRef.current?.(null);
-    });
-  }, []);
+      // Mouse events can arrive faster than frames; coalesce previews to one per frame.
+      zr.on('mousemove', (e) => {
+        if (!drag.current) {
+          hoverRef.current(e.offsetX, e.offsetY);
+          return;
+        }
+        drag.current = { ...drag.current, x1: e.offsetX, y1: e.offsetY };
+        if (frame.current !== null) return;
+        frame.current = requestAnimationFrame(() => {
+          frame.current = null;
+          if (!drag.current) return;
+          setRect(drag.current);
+          selectRef.current(drag.current, false);
+        });
+      });
+      const finish = () => {
+        const r = drag.current;
+        drag.current = null;
+        if (frame.current !== null) {
+          cancelAnimationFrame(frame.current);
+          frame.current = null;
+        }
+        setRect(null);
+        if (!r) return;
+        if (Math.abs(r.x1 - r.x0) < 3 && Math.abs(r.y1 - r.y0) < 3) {
+          onSelectRef.current(new Set(), true); // click on empty space clears
+          return;
+        }
+        selectRef.current(r, true);
+      };
+      zr.on('mouseup', finish);
+      zr.on('globalout', () => {
+        if (host.current) host.current.style.cursor = 'default';
+        finish();
+        if (tooltipTimer.current) clearTimeout(tooltipTimer.current);
+        setTooltip(null);
+        onHoverRef.current?.(null);
+      });
+    },
+    [onSelectRef, onHoverRef, hoverRef, selectRef],
+  );
 
   useEffect(
     () => () => {
@@ -258,7 +258,7 @@ export function ScatterPanel({
           }}
         />
       )}
-      <ChartTooltip data={tooltip} host={host.current} />
+      <ChartTooltip data={tooltip} hostRef={host} />
       {zoomKey && <div className="zoom-hint">zoom {zoomKey} only</div>}
     </div>
   );

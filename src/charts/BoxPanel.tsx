@@ -12,6 +12,7 @@ import {
 } from 'rubin-charts';
 import { EChart } from './EChart';
 import type { EChartsInstance } from './echarts';
+import { useLatest } from './useLatest';
 
 export interface BoxSeries {
   readonly id: string;
@@ -44,10 +45,6 @@ export function BoxPanel({
 }: Props) {
   const chart = useRef<EChartsInstance | null>(null);
   const host = useRef<HTMLDivElement>(null);
-  // The click handler is registered once; it reads the latest hit-test through this ref.
-  const binAtPixelRef = useRef<(px: number, py: number) => { series: string; bin: number } | null>(
-    () => null,
-  );
   const [binSel, setBinSel] = useState<BinSelectionState>(emptyBinSelection);
 
   const input = useMemo(
@@ -107,33 +104,37 @@ export function BoxPanel({
     [bins, mainAxis.location, series],
   );
 
-  binAtPixelRef.current = binAtPixel;
+  // Handlers are registered once; they read the latest hit-test through this ref.
+  const binAtPixelRef = useLatest(binAtPixel);
 
-  const onReady = useCallback((c: EChartsInstance) => {
-    chart.current = c;
-    c.getZr().on('mousemove', (e) => {
-      if (!host.current) return;
-      const inside = c.containPixel({ gridIndex: 0 }, [e.offsetX, e.offsetY]);
-      host.current.style.cursor = !inside
-        ? 'default'
-        : binAtPixelRef.current(e.offsetX, e.offsetY)
-          ? 'pointer'
-          : 'crosshair';
-    });
-    c.getZr().on('globalout', () => {
-      if (host.current) host.current.style.cursor = 'default';
-    });
-    c.getZr().on('click', (e) => {
-      host.current?.focus();
-      const raw = e.event as MouseEvent;
-      setBinSel((s) =>
-        clickBin(s, binAtPixelRef.current(e.offsetX, e.offsetY), {
-          shift: raw.shiftKey,
-          cmdCtrl: raw.metaKey || raw.ctrlKey,
-        }),
-      );
-    });
-  }, []);
+  const onReady = useCallback(
+    (c: EChartsInstance) => {
+      chart.current = c;
+      c.getZr().on('mousemove', (e) => {
+        if (!host.current) return;
+        const inside = c.containPixel({ gridIndex: 0 }, [e.offsetX, e.offsetY]);
+        host.current.style.cursor = !inside
+          ? 'default'
+          : binAtPixelRef.current(e.offsetX, e.offsetY)
+            ? 'pointer'
+            : 'crosshair';
+      });
+      c.getZr().on('globalout', () => {
+        if (host.current) host.current.style.cursor = 'default';
+      });
+      c.getZr().on('click', (e) => {
+        host.current?.focus();
+        const raw = e.event as MouseEvent;
+        setBinSel((s) =>
+          clickBin(s, binAtPixelRef.current(e.offsetX, e.offsetY), {
+            shift: raw.shiftKey,
+            cmdCtrl: raw.metaKey || raw.ctrlKey,
+          }),
+        );
+      });
+    },
+    [binAtPixelRef],
+  );
 
   const onKeyDown = (e: React.KeyboardEvent) => {
     if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;

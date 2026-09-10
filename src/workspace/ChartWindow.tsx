@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import type { AxisLocation, AxisSpec, DataIdKey, SeriesSpec } from 'rubin-charts';
 import type { DdvClient } from '../protocol/client';
 import {
@@ -320,11 +320,10 @@ function NoRows({ useGlobalQuery }: { useGlobalQuery: boolean }) {
 
 /** Returns the previous array while its elements are shallow-equal, so it can be a single memo dependency. */
 function useStableArray<T>(next: readonly T[]): readonly T[] {
-  const ref = useRef<readonly T[]>(next);
-  const prev = ref.current;
-  const same = prev.length === next.length && prev.every((v, i) => v === next[i]);
-  if (!same) ref.current = next;
-  return same ? prev : next;
+  const [stable, setStable] = useState<readonly T[]>(next);
+  const same = stable.length === next.length && stable.every((v, i) => v === next[i]);
+  if (!same) setStable(next); // render-phase update of this component's own state: React re-renders once
+  return same ? stable : next;
 }
 
 /** Renders the panel for the window type with every series whose data is ready. */

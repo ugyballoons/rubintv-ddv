@@ -16,11 +16,11 @@ function portOpen(port: number): Promise<boolean> {
 
 /** Skips every test when the synthetic broker is not running (see scripts/dev-stack.sh). */
 export const test = base.extend<{ app: App }>({
-  app: async ({ page }, use) => {
+  app: async ({ page }, provide) => {
     base.skip(!(await portOpen(WS_PORT)), `no broker on port ${WS_PORT}; run scripts/dev-stack.sh`);
     const app = new App(page);
     await app.open();
-    await use(app);
+    await provide(app);
   },
 });
 export { expect };

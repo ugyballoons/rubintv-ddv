@@ -13,6 +13,7 @@ import {
 import { EChart } from './EChart';
 import type { EChartsInstance } from './echarts';
 import { ChartTooltip, fmt, type TooltipData } from './ChartTooltip';
+import { useLatest } from './useLatest';
 
 export interface HistogramSeries {
   readonly id: string;
@@ -57,9 +58,6 @@ export function HistogramPanel({
   const [binSel, setBinSel] = useState<BinSelectionState>(emptyBinSelection);
   const [tooltip, setTooltip] = useState<TooltipData | null>(null);
   const tooltipTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  // Handlers are registered once; they read the latest hit-test through these refs.
-  const binAtPixelRef = useRef<(px: number, py: number) => BinHit>(() => null);
-  const tooltipAtRef = useRef<(px: number, py: number) => TooltipData | null>(() => null);
 
   const input = useMemo(
     () => ({
@@ -134,8 +132,9 @@ export function HistogramPanel({
     },
     [bins, mainAxis.location, series],
   );
-  binAtPixelRef.current = binAtPixel;
-  tooltipAtRef.current = (px, py) => {
+  // Handlers are registered once; they read the latest hit-test through these refs.
+  const binAtPixelRef = useLatest(binAtPixel);
+  const tooltipAt = (px: number, py: number): TooltipData | null => {
     const hit = binAtPixel(px, py);
     if (!hit) return null;
     const s = series.find((x) => x.id === hit.series)!;
@@ -150,41 +149,45 @@ export function HistogramPanel({
       ],
     };
   };
+  const tooltipAtRef = useLatest(tooltipAt);
 
-  const onReady = useCallback((c: EChartsInstance) => {
-    chart.current = c;
-    const zr = c.getZr();
-    zr.on('click', (e) => {
-      host.current?.focus();
-      const raw = e.event as MouseEvent;
-      setBinSel((s) =>
-        clickBin(s, binAtPixelRef.current(e.offsetX, e.offsetY), {
-          shift: raw.shiftKey,
-          cmdCtrl: raw.metaKey || raw.ctrlKey,
-        }),
-      );
-    });
-    zr.on('mousemove', (e) => {
-      if (host.current) {
-        const inside = c.containPixel({ gridIndex: 0 }, [e.offsetX, e.offsetY]);
-        host.current.style.cursor = !inside
-          ? 'default'
-          : binAtPixelRef.current(e.offsetX, e.offsetY)
-            ? 'pointer'
-            : 'crosshair';
-      }
-      if (tooltipTimer.current) clearTimeout(tooltipTimer.current);
-      setTooltip(null);
-      const px = e.offsetX;
-      const py = e.offsetY;
-      tooltipTimer.current = setTimeout(() => setTooltip(tooltipAtRef.current(px, py)), 500);
-    });
-    zr.on('globalout', () => {
-      if (host.current) host.current.style.cursor = 'default';
-      if (tooltipTimer.current) clearTimeout(tooltipTimer.current);
-      setTooltip(null);
-    });
-  }, []);
+  const onReady = useCallback(
+    (c: EChartsInstance) => {
+      chart.current = c;
+      const zr = c.getZr();
+      zr.on('click', (e) => {
+        host.current?.focus();
+        const raw = e.event as MouseEvent;
+        setBinSel((s) =>
+          clickBin(s, binAtPixelRef.current(e.offsetX, e.offsetY), {
+            shift: raw.shiftKey,
+            cmdCtrl: raw.metaKey || raw.ctrlKey,
+          }),
+        );
+      });
+      zr.on('mousemove', (e) => {
+        if (host.current) {
+          const inside = c.containPixel({ gridIndex: 0 }, [e.offsetX, e.offsetY]);
+          host.current.style.cursor = !inside
+            ? 'default'
+            : binAtPixelRef.current(e.offsetX, e.offsetY)
+              ? 'pointer'
+              : 'crosshair';
+        }
+        if (tooltipTimer.current) clearTimeout(tooltipTimer.current);
+        setTooltip(null);
+        const px = e.offsetX;
+        const py = e.offsetY;
+        tooltipTimer.current = setTimeout(() => setTooltip(tooltipAtRef.current(px, py)), 500);
+      });
+      zr.on('globalout', () => {
+        if (host.current) host.current.style.cursor = 'default';
+        if (tooltipTimer.current) clearTimeout(tooltipTimer.current);
+        setTooltip(null);
+      });
+    },
+    [binAtPixelRef, tooltipAtRef],
+  );
 
   useEffect(
     () => () => {
@@ -212,7 +215,7 @@ export function HistogramPanel({
       style={{ width: '100%', height: '100%', outline: 'none', position: 'relative' }}
     >
       <EChart option={option} resetToken={resetToken} registryId={registryId} onReady={onReady} />
-      <ChartTooltip data={tooltip} host={host.current} />
+      <ChartTooltip data={tooltip} hostRef={host} />
     </div>
   );
 }

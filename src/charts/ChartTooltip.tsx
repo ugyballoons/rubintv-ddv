@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef, useState } from 'react';
+import { useLayoutEffect, useRef, useState, type RefObject } from 'react';
 import { createPortal } from 'react-dom';
 
 export interface TooltipEntry {
@@ -25,15 +25,16 @@ const OFFSET = 14;
  */
 export function ChartTooltip({
   data,
-  host,
+  hostRef,
 }: {
   data: TooltipData | null;
-  host: HTMLElement | null;
+  hostRef: RefObject<HTMLElement | null>;
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const [pos, setPos] = useState<{ left: number; top: number } | null>(null);
 
   useLayoutEffect(() => {
+    const host = hostRef.current;
     if (!data || !host || !ref.current) {
       setPos(null);
       return;
@@ -45,7 +46,7 @@ export function ChartTooltip({
     if (left + width > h.right) left = Math.max(h.left, h.left + data.x - OFFSET - width);
     if (top + height > h.bottom) top = Math.max(h.top, h.top + data.y - OFFSET - height);
     setPos({ left, top });
-  }, [data, host]);
+  }, [data, hostRef]);
 
   if (!data) return null;
   return createPortal(
