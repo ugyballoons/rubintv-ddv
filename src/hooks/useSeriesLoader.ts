@@ -5,6 +5,7 @@ import { countRows, loadColumns } from '../protocol/commands';
 import { columnRefId, type SeriesConfig } from '../model/workspace';
 import { useSeriesData, toSeriesData } from '../store/seriesData';
 import { useWorkspace } from '../store/workspace';
+import { andQuery, nightsDayObsParam, nightsQuery } from '../model/nights';
 
 export const ROW_CONFIRM_THRESHOLD = 100_000;
 
@@ -71,20 +72,24 @@ export function useSeriesLoader(
   series: SeriesConfig,
   useGlobalQuery: boolean,
 ): void {
-  const database = useWorkspace((s) => s.instrument?.database ?? null);
+  const instrument = useWorkspace((s) => s.instrument);
+  const database = instrument?.database ?? null;
   const globalQuery = useWorkspace((s) => s.globalQuery);
   const columns = Object.values(series.fields).map(columnRefId).sort();
+  const firstTable = Object.values(series.fields)[0]?.schema ?? 'exposure';
   const params: Params | null = database
     ? {
         database,
         columns,
         query: series.query,
-        global_query: useGlobalQuery ? globalQuery.query : null,
-        day_obs: useGlobalQuery ? globalQuery.dayObs : null,
+        global_query: useGlobalQuery
+          ? andQuery(globalQuery.query, nightsQuery(globalQuery.nights, firstTable, instrument))
+          : null,
+        day_obs: useGlobalQuery ? nightsDayObsParam(globalQuery.nights) : null,
       }
     : null;
   const requestKey = params ? JSON.stringify(params) : null;
-  const reloadNonce = useSeriesData((s) => s.reload[series.id] ?? 0);
+  const reloadNonce = useSeriesData((s) => (s.reload[series.id] ?? 0) + s.reloadAll * 1000);
 
   useEffect(() => {
     if (!params || !requestKey || columns.length === 0) return;

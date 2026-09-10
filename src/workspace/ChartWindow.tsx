@@ -22,6 +22,7 @@ import { SeriesEditor } from './SeriesEditor';
 import { AxisEditor } from './AxisEditor';
 import { Icon } from '../app/Icon';
 import { fmt } from '../charts/ChartTooltip';
+import { describeNights } from '../model/nights';
 import { axisFor, toPlottable, type PlottableColumn } from '../model/columnData';
 import type { AxisConfig } from '../model/workspace';
 
@@ -33,7 +34,6 @@ export function ChartWindow({ window: w, client }: { window: WindowMeta; client:
   const [editing, setEditing] = useState<{ series: SeriesConfig; isNew: boolean } | null>(null);
   const [axesOpen, setAxesOpen] = useState(false);
   const [resetToken, setResetToken] = useState(0);
-  const requestReload = useSeriesData((s) => s.requestReload);
   const [hover, setHover] = useState<{ x: number; y: number } | null>(null);
 
   const newSeries = (): SeriesConfig | null => {
@@ -151,14 +151,7 @@ export function ChartWindow({ window: w, client }: { window: WindowMeta; client:
         >
           <Icon name="reset" />
         </button>
-        <button
-          className="icon"
-          aria-label="sync"
-          onClick={() => chart.series.forEach((s) => requestReload(s.id))}
-          title="Fetch this chart's data again"
-        >
-          <Icon name="sync" />
-        </button>
+
         {(w.type === 'histogram' || w.type === 'box') && (
           <label>
             bins
@@ -295,6 +288,31 @@ function WindowStatus({
 
 const EMPTY_ENTRIES: Record<string, SeriesEntry> = {};
 
+/** Shown instead of an empty chart when every series loaded zero rows. */
+function NoRows({ useGlobalQuery }: { useGlobalQuery: boolean }) {
+  const nights = useWorkspace((s) => s.globalQuery.nights);
+  const query = useWorkspace((s) => s.globalQuery.query);
+  const filtered = useGlobalQuery && (nights.kind !== 'none' || query);
+  return (
+    <div className="centered-note">
+      <span>
+        <b>No rows</b>
+        <br />
+        {filtered ? (
+          <>
+            Nothing matches {nights.kind !== 'none' ? describeNights(nights) : ''}
+            {nights.kind !== 'none' && query ? ' and ' : ''}
+            {query ? 'the global query' : ''}. Pick another night or turn off the global query for
+            this chart.
+          </>
+        ) : (
+          'These columns have no non-null rows.'
+        )}
+      </span>
+    </div>
+  );
+}
+
 /** Returns the previous array while its elements are shallow-equal, so it can be a single memo dependency. */
 function useStableArray<T>(next: readonly T[]): readonly T[] {
   const ref = useRef<readonly T[]>(next);
@@ -405,6 +423,10 @@ function SeriesChart({
     [axisSpecs, ay, built.yCol, chart.axes],
   );
 
+  const allEmpty =
+    ids.length > 0 &&
+    ids.every((id) => entries[id]?.status === 'ready' && entries[id].data?.rowCount === 0);
+  if (allEmpty) return <NoRows useGlobalQuery={chart.useGlobalQuery} />;
   const confirming = chart.series.find((s) => entries[s.id]?.status === 'confirm');
   if (confirming) {
     const e = entries[confirming.id];
@@ -425,6 +447,10 @@ function SeriesChart({
   }
   if (specs.length === 0) {
     const first = entries[ids[0]];
+    const allEmpty = ids.every(
+      (id) => entries[id]?.status === 'ready' && entries[id].data?.rowCount === 0,
+    );
+    if (allEmpty) return <NoRows useGlobalQuery={chart.useGlobalQuery} />;
     return (
       <div className="centered-note">
         {first?.status === 'error' ? first.error : 'Waiting for data…'}
@@ -460,6 +486,7 @@ function SeriesChart({
     case 'histogram':
       return (
         <HistogramPanel
+          selected={selected}
           registryId={w.id}
           resetToken={resetToken}
           series={specs.map((s) => ({

@@ -28,6 +28,8 @@ interface Props {
   nBins: number;
   resetToken?: number;
   registryId?: string;
+  /** Rows selected anywhere; shown as inner bars. */
+  selected?: ReadonlySet<DataIdKey>;
   onSelect(ids: ReadonlySet<DataIdKey>, committed: boolean): void;
   onInfo?(msg: string): void;
 }
@@ -48,6 +50,7 @@ export function HistogramPanel({
   resetToken,
   onSelect,
   onInfo,
+  selected,
 }: Props) {
   const chart = useRef<EChartsInstance | null>(null);
   const host = useRef<HTMLDivElement>(null);
@@ -67,9 +70,25 @@ export function HistogramPanel({
     [series, mainAxis, nBins],
   );
   const bins = useMemo(() => computeHistogramBins({ ...input, selected: new Map() }), [input]);
+  // Rows selected in any chart, counted per bin, for the inner bars.
+  const selectedCounts = useMemo(() => {
+    if (!selected || selected.size === 0) return undefined;
+    const out = new Map<string, Uint32Array>();
+    for (const s of series) {
+      const members = bins.perSeries.get(s.id)?.members ?? [];
+      const counts = new Uint32Array(members.length);
+      members.forEach((idx, b) => {
+        let n = 0;
+        for (const i of idx) if (selected.has(s.dataIds[i])) n++;
+        counts[b] = n;
+      });
+      out.set(s.id, counts);
+    }
+    return out;
+  }, [selected, series, bins]);
   const option = useMemo(
-    () => buildHistogramOption({ ...input, selected: binSel.selected }, bins),
-    [input, bins, binSel],
+    () => buildHistogramOption({ ...input, selected: binSel.selected, selectedCounts }, bins),
+    [input, bins, binSel, selectedCounts],
   );
   const binLabel = (b: number) =>
     mainAxis.kind === 'category' && mainAxis.categories

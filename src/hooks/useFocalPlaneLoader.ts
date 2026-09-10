@@ -6,6 +6,8 @@ import { columnRefId, type ColumnRef } from '../model/workspace';
 import { toFocalPlaneFrames, type FocalPlaneFrames } from '../model/focalPlane';
 import { useSelection } from '../store/selection';
 import { useWorkspace } from '../store/workspace';
+import { useSeriesData } from '../store/seriesData';
+import { nightsDayObsParam, nightsQuery } from '../model/nights';
 
 export interface FocalLoad {
   readonly status: 'idle' | 'loading' | 'ready' | 'error';
@@ -26,7 +28,10 @@ export function detectorColumnFor(field: ColumnRef): ColumnRef {
  */
 export function useFocalPlaneLoader(client: DdvClient, field: ColumnRef | null): FocalLoad {
   const selected = useSelection((s) => s.selected);
-  const dayObs = useWorkspace((s) => s.globalQuery.dayObs);
+  const nights = useWorkspace((s) => s.globalQuery.nights);
+  const instrument = useWorkspace((s) => s.instrument);
+  const dayObs = nightsDayObsParam(nights);
+  const nightsKey = JSON.stringify(nights);
   const [state, setState] = useState<FocalLoad>({
     status: 'idle',
     frames: null,
@@ -34,10 +39,11 @@ export function useFocalPlaneLoader(client: DdvClient, field: ColumnRef | null):
     source: 'none',
   });
   const selectedKey = selected.size ? [...selected].sort().join(',') : '';
+  const reloadAll = useSeriesData((s) => s.reloadAll);
 
   useEffect(() => {
     if (!field) return;
-    const source = selected.size ? 'selection' : dayObs ? 'night' : 'none';
+    const source = selected.size ? 'selection' : nights.kind !== 'none' ? 'night' : 'none';
     if (source === 'none') {
       setState({ status: 'idle', frames: null, error: null, source });
       return;
@@ -57,6 +63,7 @@ export function useFocalPlaneLoader(client: DdvClient, field: ColumnRef | null):
                     .map((d) => [d.dayObs, d.seqNum] as [number, number])
                 : null,
             day_obs: source === 'night' ? dayObs : null,
+            global_query: source === 'night' ? nightsQuery(nights, field.schema, instrument) : null,
           });
           if (cancelled) return;
           const frames = toFocalPlaneFrames(reply);
@@ -79,7 +86,7 @@ export function useFocalPlaneLoader(client: DdvClient, field: ColumnRef | null):
     };
     // selectedKey stands in for the Set identity.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [client, field?.name, field?.schema, field?.database, selectedKey, dayObs]);
+  }, [client, field?.name, field?.schema, field?.database, selectedKey, nightsKey, reloadAll]);
 
   return state;
 }

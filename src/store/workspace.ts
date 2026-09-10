@@ -14,6 +14,7 @@ import {
   type WindowType,
 } from '../model/workspace';
 import type { QueryJson } from '../protocol/types';
+import { NO_NIGHTS, nightsDayObsParam, type NightSelection } from '../model/nights';
 import { parseWorkspace, serializeWorkspace, stringifyWorkspace } from '../model/workspaceJson';
 import { SERIES_COLORS } from '../model/workspace';
 import { APP_VERSION } from '../config';
@@ -21,7 +22,9 @@ import { APP_VERSION } from '../config';
 export type InstrumentStatus = 'none' | 'loading' | 'ready';
 
 export interface GlobalQuery {
-  /** YYYY-MM-DD or null. */
+  /** The night filter; `dayObs` below is derived from it for single nights. */
+  readonly nights: NightSelection;
+  /** YYYY-MM-DD when exactly one night is selected, else null. */
   readonly dayObs: string | null;
   readonly query: QueryJson | null;
   readonly detectorId: number | null;
@@ -70,7 +73,7 @@ export const useWorkspace = create<WorkspaceState>((set, get) => ({
   instrumentStatus: 'none',
   windows: {},
   nextZ: 1,
-  globalQuery: { dayObs: null, query: null, detectorId: null },
+  globalQuery: { nights: NO_NIGHTS, dayObs: null, query: null, detectorId: null },
 
   async selectInstrument(client, name) {
     if (!name) {
@@ -103,7 +106,9 @@ export const useWorkspace = create<WorkspaceState>((set, get) => ({
       title: WINDOW_TITLES[type],
       x,
       y,
-      ...DEFAULT_WINDOW_SIZE,
+      ...(type === 'detectorSelector' || type === 'focalPlane'
+        ? { width: 560, height: 600 }
+        : DEFAULT_WINDOW_SIZE),
       z: nextZ,
       chart: defaultChart(type),
       ...(defaultFocal(type) && { focal: defaultFocal(type) }),
@@ -150,11 +155,24 @@ export const useWorkspace = create<WorkspaceState>((set, get) => ({
   },
 
   setGlobalQuery(patch) {
-    set((s) => ({ globalQuery: { ...s.globalQuery, ...patch } }));
+    set((s) => {
+      const merged = { ...s.globalQuery, ...patch };
+      // A dayObs patch (e.g. from a loaded file) becomes a single-night selection; nights drive dayObs.
+      if ('dayObs' in patch && !('nights' in patch)) {
+        merged.nights = patch.dayObs
+          ? { kind: 'single', night: Number(patch.dayObs.replace(/-/g, '')) }
+          : NO_NIGHTS;
+      }
+      merged.dayObs = nightsDayObsParam(merged.nights);
+      return { globalQuery: merged };
+    });
   },
 
   clearWorkspace() {
-    set({ windows: {}, globalQuery: { dayObs: null, query: null, detectorId: null } });
+    set({
+      windows: {},
+      globalQuery: { nights: NO_NIGHTS, dayObs: null, query: null, detectorId: null },
+    });
   },
 
   saveWorkspace(pretty = false) {
@@ -165,6 +183,7 @@ export const useWorkspace = create<WorkspaceState>((set, get) => ({
         instrument,
         globalQuery: globalQuery.query,
         dayObs: globalQuery.dayObs,
+        nights: globalQuery.nights,
         detectorId: globalQuery.detectorId,
         version: APP_VERSION,
         newId,
@@ -180,8 +199,12 @@ export const useWorkspace = create<WorkspaceState>((set, get) => ({
       await get().selectInstrument(client, peek.instrumentName);
     }
     const file = parseWorkspace(text, get().instrument, SERIES_COLORS);
+    const nights: NightSelection =
+      file.nights ??
+      (file.dayObs ? { kind: 'single', night: Number(file.dayObs.replace(/-/g, '')) } : NO_NIGHTS);
     get().replaceWindows(file.windows, {
-      dayObs: file.dayObs,
+      nights,
+      dayObs: nightsDayObsParam(nights),
       query: file.globalQuery,
       detectorId: file.detectorId,
     });

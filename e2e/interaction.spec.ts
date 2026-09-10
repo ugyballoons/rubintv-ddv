@@ -16,7 +16,7 @@ test('hovering a point shows a tooltip and the coordinate readout', async ({ app
   await expect(page.getByRole('tooltip')).toHaveCount(0);
 });
 
-test('reset axes restores the view after a zoom and sync re-fetches', async ({ app, page }) => {
+test('reset axes restores the view after a zoom and Refresh re-fetches', async ({ app, page }) => {
   const win = await app.addChart('Scatter plot');
   await app.addSeries(win, { bottom: 'ra', left: 'dec' });
   await app.waitLoaded(win);
@@ -33,7 +33,7 @@ test('reset axes restores the view after a zoom and sync re-fetches', async ({ a
   await expect.poll(extents).toEqual(before);
   const loads = () => app.sent.filter((m) => m.name === 'load columns').length;
   const beforeSync = loads();
-  await win.getByRole('button', { name: 'sync' }).click();
+  await page.getByRole('button', { name: 'Refresh' }).click();
   await expect.poll(loads, { timeout: 30_000 }).toBeGreaterThanOrEqual(beforeSync + 2); // count + data
   await app.waitLoaded(win);
 });
@@ -51,6 +51,7 @@ test('copy puts the selected exposures on the clipboard as (dayObs, seqNum) pair
   const n = (await app.state()).selected;
   expect(n).toBeGreaterThan(0);
   await page.getByRole('button', { name: 'Copy', exact: true }).click();
+  await expect(page.locator('.toolbar .notice')).toContainText(/Copied [\d,]+ exposures/);
   const text = await page.evaluate(() => navigator.clipboard.readText());
   expect(text).toMatch(/^\[\(2025\d{4}, \d+\)(,\(2025\d{4}, \d+\))*\]$/);
   expect(text.split('),(').length).toBe(n);

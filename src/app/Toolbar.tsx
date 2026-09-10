@@ -13,6 +13,7 @@ import { Menu } from './Menu';
 import { WorkspaceMenu } from './WorkspaceMenu';
 import { QueryEditor } from '../query/QueryEditor';
 import { Icon } from './Icon';
+import { NightPicker } from './NightPicker';
 
 /** Connection dot: red disconnected, amber connected without an instrument, green ready. */
 function StatusDot() {
@@ -41,7 +42,6 @@ export function Toolbar({ client }: { client: DdvClient }) {
   const windows = useWorkspace((s) => s.windows);
   const addWindow = useWorkspace((s) => s.addWindow);
   const clearWorkspace = useWorkspace((s) => s.clearWorkspace);
-  const dayObs = useWorkspace((s) => s.globalQuery.dayObs);
   const query = useWorkspace((s) => s.globalQuery.query);
   const detectorId = useWorkspace((s) => s.globalQuery.detectorId);
   const setGlobalQuery = useWorkspace((s) => s.setGlobalQuery);
@@ -49,11 +49,19 @@ export function Toolbar({ client }: { client: DdvClient }) {
   const selectedCount = useSelection((s) => s.selected.size);
   const clearSelection = useSelection((s) => s.clearSelection);
   const [queryOpen, setQueryOpen] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
+  const requestReloadAll = useSeriesData((s) => s.requestReloadAll);
+  const loadingInstrument = instrumentStatus === 'loading';
   const hasWindows = Object.keys(windows).length > 0;
   const detectorLabel =
     detectorId === null
       ? ''
       : (instrument?.detectors.find((d) => d.id === detectorId)?.name ?? String(detectorId));
+
+  const flash = (text: string) => {
+    setNotice(text);
+    window.setTimeout(() => setNotice((n) => (n === text ? null : n)), 2500);
+  };
 
   const changeInstrument = async (name: string | null) => {
     if (hasWindows && !window.confirm('Changing the instrument clears the workspace. Continue?'))
@@ -83,6 +91,11 @@ export function Toolbar({ client }: { client: DdvClient }) {
           </option>
         ))}
       </select>
+      {loadingInstrument && (
+        <span className="meta loading-instrument" role="status">
+          <span className="spinner" /> Loading schema and geometry…
+        </span>
+      )}
       <span className="sep" />
       <Menu
         label="Add chart"
@@ -95,15 +108,7 @@ export function Toolbar({ client }: { client: DdvClient }) {
       />
       <WorkspaceMenu client={client} />
       <span className="sep" />
-      <label title="Restrict every chart that uses the global query to this observation night">
-        <Icon name="night" />
-        <input
-          type="date"
-          aria-label="Observation night"
-          value={dayObs ?? ''}
-          onChange={(e) => setGlobalQuery({ dayObs: e.target.value || null })}
-        />
-      </label>
+      <NightPicker client={client} />
       <button
         onClick={() => setQueryOpen(true)}
         disabled={!instrument?.database}
@@ -133,9 +138,15 @@ export function Toolbar({ client }: { client: DdvClient }) {
       <button
         onClick={() => {
           const ids = [...useSelection.getState().selected].map((k) => parseDataIdKey(k));
-          void navigator.clipboard.writeText(
-            `[${ids.map((d) => `(${d.dayObs}, ${d.seqNum})`).join(',')}]`,
-          );
+          void navigator.clipboard
+            .writeText(`[${ids.map((d) => `(${d.dayObs}, ${d.seqNum})`).join(',')}]`)
+            .then(
+              () =>
+                flash(
+                  `Copied ${ids.length.toLocaleString()} exposure${ids.length === 1 ? '' : 's'}`,
+                ),
+              () => flash('Clipboard unavailable'),
+            );
         }}
         disabled={selectedCount === 0}
         title="Copy the selected exposures to the clipboard as (dayObs, seqNum) pairs"
@@ -151,6 +162,19 @@ export function Toolbar({ client }: { client: DdvClient }) {
         <Icon name="clear" />
         Clear selection{selectedCount ? ` (${selectedCount.toLocaleString()})` : ''}
       </button>
+      <button
+        onClick={requestReloadAll}
+        disabled={!hasWindows}
+        title="Fetch every chart's data again"
+      >
+        <Icon name="sync" />
+        Refresh
+      </button>
+      {notice && (
+        <span className="meta notice" role="status">
+          {notice}
+        </span>
+      )}
       <span className="spacer meta" title={`v${APP_VERSION} · ${client.url}`}>
         v{APP_VERSION}
       </span>

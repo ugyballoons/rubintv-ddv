@@ -24,7 +24,10 @@ interface SeriesDataState {
   entries: Record<string, SeriesEntry>;
   /** Bumped by "sync with server" to force a reload of a series. */
   reload: Record<string, number>;
+  /** Bumped by the toolbar Refresh: every series and focal plane re-fetches. */
+  reloadAll: number;
   requestReload(seriesId: string): void;
+  requestReloadAll(): void;
   setEntry(seriesId: string, patch: Partial<SeriesEntry>): void;
   remove(seriesId: string): void;
   clear(): void;
@@ -41,6 +44,10 @@ const IDLE: SeriesEntry = {
 export const useSeriesData = create<SeriesDataState>((set) => ({
   entries: {},
   reload: {},
+  reloadAll: 0,
+  requestReloadAll() {
+    set((s) => ({ reloadAll: s.reloadAll + 1 }));
+  },
   requestReload(seriesId) {
     set((s) => ({ reload: { ...s.reload, [seriesId]: (s.reload[seriesId] ?? 0) + 1 } }));
   },

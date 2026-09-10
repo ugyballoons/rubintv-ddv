@@ -139,6 +139,15 @@ export class App {
     return JSON.parse(await this.page.evaluate(() => window.__ddv!.save()));
   }
 
+  /** Type nights into the picker: "2025-11-03", "2025-11-01..2025-11-03", or "2025-11-01, 2025-11-03". */
+  async setNights(text: string): Promise<void> {
+    await this.page.getByRole('button', { name: /All nights|^\d{4}-\d{2}-\d{2}|nights$/ }).click();
+    const dlg = this.page.getByRole('dialog', { name: 'Choose nights' });
+    await dlg.locator('input[aria-label="night text"]').fill(text);
+    await dlg.locator('input[aria-label="night text"]').press('Enter');
+    await this.page.keyboard.press('Escape');
+  }
+
   selectionButton(): Locator {
     return this.page.getByRole('button', { name: /Clear selection/ });
   }

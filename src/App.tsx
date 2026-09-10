@@ -43,7 +43,21 @@ export default function App() {
             | undefined;
           if (!c) return null;
           const ext = (n: string) => c.getModel().getComponent(n)?.axis.scale.getExtent() ?? null;
-          return { x: ext('xAxis'), y: ext('yAxis') };
+          const opt = (
+            c as unknown as {
+              getOption(): { series?: { id?: string; type?: string; data?: unknown[] }[] };
+            }
+          ).getOption();
+          return {
+            x: ext('xAxis'),
+            y: ext('yAxis'),
+            series: (opt.series ?? []).map((s) => ({
+              id: s.id,
+              type: s.type,
+              rows: s.data?.length ?? 0,
+              data: s.data?.slice(0, 200),
+            })),
+          };
         },
         state: () => {
           const sel = useSelection.getState();

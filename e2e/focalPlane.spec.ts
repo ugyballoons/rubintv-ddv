@@ -11,7 +11,7 @@ test('the focal plane colours detectors per exposure, plays, and follows the sel
   const dlg = page.getByRole('dialog', { name: 'Focal plane column' });
   await dlg.locator('select[aria-label="focal column"]').selectOption('psf_sigma_median');
   await dlg.getByRole('button', { name: 'Accept' }).click();
-  await page.getByLabel('Observation night').fill('2025-11-01');
+  await app.setNights('2025-11-01');
   const meta = win.locator('.window-toolbar .meta');
   await expect(meta).toContainText('600 exposures from night', { timeout: 60_000 });
   const distinct = await win

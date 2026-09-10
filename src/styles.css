@@ -804,3 +804,104 @@ input[type='checkbox'] {
   align-items: center;
   gap: 4px;
 }
+.toolbar .notice {
+  color: var(--accent-ink);
+  background: var(--accent-soft);
+  padding: 3px 10px;
+  border-radius: 12px;
+  font-size: 12.5px;
+}
+.toolbar .loading-instrument {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--ink-2);
+}
+.toolbar button.active {
+  border-color: var(--accent);
+  color: var(--accent-ink);
+  background: var(--accent-soft);
+}
+.night-popover {
+  position: fixed;
+  z-index: 3000;
+  width: 320px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  box-shadow: var(--shadow);
+  padding: 10px 12px 8px;
+}
+.night-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+.night-month {
+  font-weight: 600;
+}
+.night-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 2px;
+}
+.night-weekday {
+  text-align: center;
+  font-size: 11px;
+  color: var(--muted);
+  padding: 2px 0;
+}
+.night-day {
+  position: relative;
+  height: 34px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: none;
+  font-size: 13px;
+  color: var(--muted);
+  cursor: pointer;
+  font-variant-numeric: tabular-nums;
+}
+.night-day.has-data {
+  color: var(--ink);
+  font-weight: 500;
+}
+.night-day:hover {
+  background: var(--bg-2);
+}
+.night-day.selected {
+  background: var(--accent);
+  color: #fff;
+}
+.night-dot {
+  position: absolute;
+  left: 50%;
+  bottom: 4px;
+  width: 4px;
+  height: 4px;
+  margin-left: -2px;
+  border-radius: 2px;
+  background: var(--accent);
+}
+.night-day.selected .night-dot {
+  background: #fff;
+}
+.night-foot {
+  display: flex;
+  gap: 6px;
+  margin-top: 8px;
+}
+.night-foot input {
+  flex: 1;
+  font-family: var(--mono);
+  font-size: 12px;
+}
+.night-status {
+  margin-top: 6px;
+  font-size: 12px;
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  flex-wrap: wrap;
+}

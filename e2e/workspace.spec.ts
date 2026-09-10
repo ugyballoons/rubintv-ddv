@@ -22,7 +22,7 @@ test('a workspace saves and reloads identically, including the night filter', as
   const scatter = await app.addChart('Scatter plot');
   await app.addSeries(scatter, { bottom: 'ra', left: 'dec' });
   await app.waitLoaded(scatter);
-  await page.getByLabel('Observation night').fill('2025-11-03');
+  await app.setNights('2025-11-03');
   await expect(scatter.getByTestId('chart-status')).toContainText('3,334 rows');
   const saved = await app.saveJson();
   expect(saved.dayObs).toBe('2025-11-03T00:00:00.000');

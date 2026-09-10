@@ -16,6 +16,7 @@ import type {
   QueryJson,
 } from '../protocol/types';
 import type { Instrument } from './schema';
+import type { NightSelection } from './nights';
 import {
   defaultAxes,
   type AxisConfig,
@@ -35,6 +36,8 @@ export interface WorkspaceFile {
   readonly globalQuery: QueryJson | null;
   /** YYYY-MM-DD or null. */
   readonly dayObs: string | null;
+  /** Ranges and sets of nights; absent in files from the Flutter app. */
+  readonly nights: NightSelection | null;
   readonly detectorId: number | null;
   readonly version: { major: number; minor: number; patch: number; buildNumber: string };
   /** Windows the loader skipped, with the reason (unknown column, unsupported type). */
@@ -46,6 +49,7 @@ export interface SaveInput {
   readonly instrument: Instrument | null;
   readonly globalQuery: QueryJson | null;
   readonly dayObs: string | null;
+  readonly nights?: NightSelection;
   readonly detectorId: number | null;
   readonly version: string;
   readonly newId: () => string;
@@ -202,6 +206,8 @@ export function serializeWorkspace(input: SaveInput): Record<string, unknown> {
   }
   if (input.globalQuery) out.globalQuery = queryTreeToGraph(input.globalQuery, input.newId);
   if (input.dayObs) out.dayObs = `${input.dayObs}T00:00:00.000`;
+  if (input.nights && (input.nights.kind === 'range' || input.nights.kind === 'set'))
+    out.nights = input.nights;
   if (input.detectorId !== null && input.instrument) {
     const d = input.instrument.detectors.find((x) => x.id === input.detectorId);
     if (d)
@@ -464,6 +470,7 @@ export function parseWorkspace(
     detectors: (inst?.detectors as DetectorInfo[] | undefined) ?? [],
     globalQuery: json.globalQuery ? queryGraphToTree(json.globalQuery) : null,
     dayObs: dayObsRaw ? dayObsRaw.slice(0, 10) : null,
+    nights: (json.nights as NightSelection | undefined) ?? null,
     detectorId: typeof detector?.id === 'number' ? detector.id : null,
     version,
     skipped,

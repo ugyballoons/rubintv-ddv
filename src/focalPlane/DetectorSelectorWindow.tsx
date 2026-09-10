@@ -18,7 +18,7 @@ export function DetectorSelectorWindow() {
       <div className="window-toolbar">
         <span className="meta">{det ? `${det.id}: ${det.name}` : 'No detector selected'}</span>
       </div>
-      <div className="window-body">
+      <div className="window-body focal-body">
         <FocalPlaneView
           detectors={instrument.detectors}
           selectedId={detectorId}
