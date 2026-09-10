@@ -35,16 +35,17 @@ export function FileDialog({ client, mode, content, onCancel, onDone }: Props) {
   const [selected, setSelected] = useState<string | null>(null);
   const [filename, setFilename] = useState(mode === 'save' ? DEFAULT_NAME() : '');
   const [renaming, setRenaming] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
+  const [busy, setBusy] = useState(true); // the initial listing is in flight
   const [error, setError] = useState<string | null>(null);
 
+  // Fetches a listing; every state update happens after the await, so this is
+  // safe to trigger from the mount effect. Callers set busy before calling.
   const refresh = useCallback(
     async (p: RemotePath) => {
-      setBusy(true);
-      setError(null);
       try {
         const l = await listDirectory(client, p);
         setListing({ files: [...l.files], directories: [...l.directories] });
+        setError(null);
       } catch (e) {
         setError((e as Error).message);
       } finally {
@@ -53,13 +54,14 @@ export function FileDialog({ client, mode, content, onCancel, onDone }: Props) {
     },
     [client],
   );
-  // Initial listing; later navigation goes through navigate(), which also clears the selection.
   useEffect(() => {
     void refresh([]);
   }, [refresh]);
   const navigate = (p: RemotePath) => {
     setPath(p);
     setSelected(null);
+    setBusy(true);
+    setError(null);
     void refresh(p);
   };
 
@@ -71,7 +73,6 @@ export function FileDialog({ client, mode, content, onCancel, onDone }: Props) {
       await refresh(path);
     } catch (e) {
       setError((e as Error).message);
-    } finally {
       setBusy(false);
     }
   };
