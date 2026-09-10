@@ -34,3 +34,12 @@ export function toNumericSeries(reply: TableColumns, xId: string, yId: string): 
   }
   return { x, y, dataIds };
 }
+
+/**
+ * Rubin exposure ids are day_obs × 100000 + seq_num (verified against consdb:
+ * exposure.exposure_id and visit1.visit_id both follow it), so a selection can
+ * be expressed as exposure ids without another fetch.
+ */
+export function exposureId(id: { dayObs: number; seqNum: number }): number {
+  return id.dayObs * 100000 + id.seqNum;
+}

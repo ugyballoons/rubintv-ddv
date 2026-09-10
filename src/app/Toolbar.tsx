@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { parseDataIdKey } from 'rubin-charts';
+import { exposureId } from '../model/columns';
 import type { DdvClient } from '../protocol/client';
 import { KNOWN_INSTRUMENTS } from '../model/schema';
 import { CHART_WINDOW_TYPES, WINDOW_TITLES, type WindowType } from '../model/workspace';
@@ -139,19 +140,19 @@ export function Toolbar({ client }: { client: DdvClient }) {
         className="icon"
         aria-label="Copy"
         onClick={() => {
-          const ids = [...useSelection.getState().selected].map((k) => parseDataIdKey(k));
-          void navigator.clipboard
-            .writeText(`[${ids.map((d) => `(${d.dayObs}, ${d.seqNum})`).join(',')}]`)
-            .then(
-              () =>
-                flash(
-                  `Copied ${ids.length.toLocaleString()} exposure${ids.length === 1 ? '' : 's'}`,
-                ),
-              () => flash('Clipboard unavailable'),
-            );
+          const ids = [...useSelection.getState().selected]
+            .map((k) => exposureId(parseDataIdKey(k)))
+            .sort((a, b) => a - b);
+          void navigator.clipboard.writeText(`[${ids.join(', ')}]`).then(
+            () =>
+              flash(
+                `Copied ${ids.length.toLocaleString()} exposure id${ids.length === 1 ? '' : 's'}`,
+              ),
+            () => flash('Clipboard unavailable'),
+          );
         }}
         disabled={selectedCount === 0}
-        title="Copy the selected exposures to the clipboard as (dayObs, seqNum) pairs"
+        title="Copy the selected exposure ids to the clipboard"
       >
         <Icon name="copy" />
       </button>

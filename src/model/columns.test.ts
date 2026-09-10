@@ -27,3 +27,10 @@ describe('columns', () => {
     expect(s.dataIds).toEqual(['20250101:7', '20250102:8']);
   });
 });
+
+describe('exposureId', () => {
+  it('follows the day_obs * 100000 + seq_num convention', async () => {
+    const { exposureId } = await import('./columns');
+    expect(exposureId({ dayObs: 20260713, seqNum: 13 })).toBe(2026071300013);
+  });
+});

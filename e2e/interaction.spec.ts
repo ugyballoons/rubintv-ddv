@@ -38,11 +38,7 @@ test('reset axes restores the view after a zoom and Refresh re-fetches', async (
   await app.waitLoaded(win);
 });
 
-test('copy puts the selected exposures on the clipboard as (dayObs, seqNum) pairs', async ({
-  app,
-  page,
-  context,
-}) => {
+test('copy puts the selected exposure ids on the clipboard', async ({ app, page, context }) => {
   await context.grantPermissions(['clipboard-read', 'clipboard-write']);
   const win = await app.addChart('Scatter plot');
   await app.addSeries(win, { bottom: 'ra', left: 'dec' });
@@ -51,10 +47,12 @@ test('copy puts the selected exposures on the clipboard as (dayObs, seqNum) pair
   const n = (await app.state()).selected;
   expect(n).toBeGreaterThan(0);
   await page.getByRole('button', { name: 'Copy', exact: true }).click();
-  await expect(page.locator('.toolbar .notice')).toContainText(/Copied [\d,]+ exposures/);
+  await expect(page.locator('.toolbar .notice')).toContainText(/Copied [\d,]+ exposure ids/);
   const text = await page.evaluate(() => navigator.clipboard.readText());
-  expect(text).toMatch(/^\[\(2025\d{4}, \d+\)(,\(2025\d{4}, \d+\))*\]$/);
-  expect(text.split('),(').length).toBe(n);
+  expect(text).toMatch(/^\[2025\d{9}(, 2025\d{9})*\]$/);
+  const ids = text.slice(1, -1).split(', ').map(Number);
+  expect(ids.length).toBe(n);
+  expect([...ids].sort((a, b) => a - b)).toEqual(ids);
 });
 
 test('datetime and categorical columns plot with time and category axes', async ({ app, page }) => {
