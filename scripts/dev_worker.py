@@ -262,8 +262,13 @@ def main() -> None:
         original = LoadInstrumentCommand.build_contents
 
         def build_contents(self, dc):  # type: ignore[no-untyped-def]
+            if self.instrument.lower() != "testdb":
+                raise RuntimeError(
+                    f"This is the synthetic dev worker: it serves only the 'testdb' instrument, not "
+                    f"{self.instrument!r}. Point the app at the broker with the real analysis service."
+                )
             result = original(self, dc)
-            if self.instrument.lower() == "testdb" and not result.get("detectors"):
+            if not result.get("detectors"):
                 result["detectors"] = detectors
             return result
 

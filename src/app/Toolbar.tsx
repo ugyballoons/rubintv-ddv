@@ -54,6 +54,16 @@ export function Toolbar({ client }: { client: DdvClient }) {
   const requestReloadAll = useSeriesData((s) => s.requestReloadAll);
   const loadingInstrument = instrumentStatus === 'loading';
   const hasWindows = Object.keys(windows).length > 0;
+  // Name the backend when it is not the deployed one, so a test instance is recognisable at a glance.
+  const backendLabel = (() => {
+    try {
+      const u = new URL(client.url);
+      const deployed = u.pathname.startsWith('/rubintv/ws/ddv');
+      return deployed ? '' : `backend ${u.host}${u.pathname.replace(/\/client$/, '')}`;
+    } catch {
+      return '';
+    }
+  })();
   const detectorLabel =
     detectorId === null
       ? ''
@@ -182,6 +192,7 @@ export function Toolbar({ client }: { client: DdvClient }) {
       )}
       <span className="spacer meta" title={`v${APP_VERSION} · ${client.url}`}>
         v{APP_VERSION}
+        {backendLabel && <span className="backend"> · {backendLabel}</span>}
       </span>
       <button
         className="icon danger"
