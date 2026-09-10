@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import type { EChartsCoreOption } from 'echarts/core';
+import { fitVerticalAxisTitles } from 'rubin-charts';
 import { echarts, type EChartsInstance } from './echarts';
 
 interface Props {
@@ -30,7 +31,12 @@ export function EChart({ option, patch, resetToken = 0, onReady, registryId, sty
     chart.current = c;
     if (registryId) chartRegistry.set(registryId, c);
     onReady?.(c);
-    const ro = new ResizeObserver(() => c.resize());
+    // Zooming changes the tick labels, so the title gap is refitted after each zoom.
+    c.on('datazoom', () => fitVerticalAxisTitles(c as never));
+    const ro = new ResizeObserver(() => {
+      c.resize();
+      fitVerticalAxisTitles(c as never);
+    });
     ro.observe(el);
     return () => {
       ro.disconnect();
@@ -48,6 +54,8 @@ export function EChart({ option, patch, resetToken = 0, onReady, registryId, sty
     c.setOption(option, { notMerge: true, lazyUpdate: false });
     // A full re-apply drops the merged overlay; put the latest one back.
     if (lastPatch.current) c.setOption(lastPatch.current, { notMerge: false });
+    // Size the vertical axis titles from the tick labels just drawn.
+    fitVerticalAxisTitles(c as never);
   }, [option, resetToken]);
 
   useEffect(() => {
