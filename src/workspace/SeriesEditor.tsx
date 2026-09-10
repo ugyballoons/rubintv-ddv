@@ -11,6 +11,8 @@ interface Props {
   axes: readonly AxisConfig[];
   series: SeriesConfig;
   isNew: boolean;
+  /** Histograms and box charts only use the colour; points also have a size. */
+  hasMarkerSize?: boolean;
   onCancel(): void;
   onAccept(series: SeriesConfig): void;
   onDelete(): void;
@@ -28,6 +30,7 @@ export function SeriesEditor({
   onCancel,
   onAccept,
   onDelete,
+  hasMarkerSize = true,
 }: Props) {
   const [draft, setDraft] = useState<SeriesConfig>(series);
   const [queryOpen, setQueryOpen] = useState(false);
@@ -102,7 +105,7 @@ export function SeriesEditor({
           );
         })}
         <div className="field">
-          <span>Marker</span>
+          <span>{hasMarkerSize ? 'Marker' : 'Colour'}</span>
           <input
             type="color"
             aria-label="marker colour"
@@ -111,21 +114,25 @@ export function SeriesEditor({
               setDraft({ ...draft, marker: { ...draft.marker, color: e.target.value } })
             }
           />
-          <input
-            type="number"
-            aria-label="marker size"
-            min={1}
-            max={20}
-            value={draft.marker.size}
-            style={{ width: 56 }}
-            onChange={(e) =>
-              setDraft({
-                ...draft,
-                marker: { ...draft.marker, size: Math.max(1, Number(e.target.value) || 1) },
-              })
-            }
-          />
-          <span className="meta">px</span>
+          {hasMarkerSize && (
+            <>
+              <input
+                type="number"
+                aria-label="marker size"
+                min={1}
+                max={20}
+                value={draft.marker.size}
+                style={{ width: 56 }}
+                onChange={(e) =>
+                  setDraft({
+                    ...draft,
+                    marker: { ...draft.marker, size: Math.max(1, Number(e.target.value) || 1) },
+                  })
+                }
+              />
+              <span className="meta">px</span>
+            </>
+          )}
         </div>
         <div className="field">
           <span>Query</span>

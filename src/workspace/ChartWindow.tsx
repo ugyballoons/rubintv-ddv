@@ -222,6 +222,7 @@ export function ChartWindow({ window: w, client }: { window: WindowMeta; client:
       )}
       {editing && instrument && (
         <SeriesEditor
+          hasMarkerSize={w.type === 'cartesianScatter' || w.type === 'polarScatter'}
           instrument={instrument}
           axes={chart.axes}
           series={editing.series}
