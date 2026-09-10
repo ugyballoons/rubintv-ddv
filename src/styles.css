@@ -37,11 +37,17 @@ body {
   align-items: center;
   gap: 8px;
   white-space: nowrap;
-  overflow-x: auto;
+  flex-wrap: nowrap;
+  /* No overflow clipping here: the dropdown menus are positioned inside the toolbar. */
+  position: relative;
+  z-index: 10;
   height: 40px;
   padding: 0 12px;
   border-bottom: 1px solid var(--line);
   background: var(--bg-2);
+  flex: none;
+}
+.toolbar > * {
   flex: none;
 }
 .toolbar label {
@@ -52,12 +58,14 @@ body {
 }
 .toolbar .spacer {
   margin-left: auto;
+  flex: 0 1 auto;
 }
 .toolbar .meta {
   font-size: 12px;
   color: var(--muted);
   overflow: hidden;
   text-overflow: ellipsis;
+  min-width: 0;
 }
 .toolbar button,
 .window-toolbar button,
