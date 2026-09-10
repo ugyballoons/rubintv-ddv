@@ -12,6 +12,11 @@ The migration plan, feature inventory and protocol notes are in
 
 ## Develop
 
+`rubin-charts` is consumed straight from its GitHub repository, pinned to a
+commit in `package.json` (npm builds it on install). To iterate on both
+repositories together, run `npm link` in a `rubin-charts` checkout and
+`npm link rubin-charts` here; run `npm install` again to go back to the pin.
+
 ```
 npm install
 cp .env.example .env      # point at a local mock_server.py or a RubinTV instance

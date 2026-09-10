@@ -21,7 +21,7 @@
     "react-dom": "^19.2.8",
     "react-rnd": "^10.5.3",
     "reconnecting-websocket": "^4.4.0",
-    "rubin-charts": "file:../rubin-charts",
+    "rubin-charts": "github:ugyballoons/rubin-charts#c7f9ec9",
     "zustand": "^5.0.15"
   },
   "devDependencies": {
