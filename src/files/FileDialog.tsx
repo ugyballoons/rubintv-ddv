@@ -54,9 +54,25 @@ export function FileDialog({ client, mode, content, onCancel, onDone }: Props) {
     },
     [client],
   );
+  // Initial listing on mount; state updates happen in the promise callbacks, not synchronously here.
   useEffect(() => {
-    void refresh([]);
-  }, [refresh]);
+    let cancelled = false;
+    listDirectory(client, [])
+      .then((l) => {
+        if (cancelled) return;
+        setListing({ files: [...l.files], directories: [...l.directories] });
+        setError(null);
+      })
+      .catch((e: Error) => {
+        if (!cancelled) setError(e.message);
+      })
+      .finally(() => {
+        if (!cancelled) setBusy(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [client]);
   const navigate = (p: RemotePath) => {
     setPath(p);
     setSelected(null);
