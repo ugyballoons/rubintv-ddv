@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import type { DdvClient } from '../protocol/client';
 import {
   createDirectory,
@@ -89,7 +90,7 @@ export function FileDialog({ client, mode, content, onCancel, onDone }: Props) {
     }
   };
 
-  return (
+  return createPortal(
     <div className="dialog-backdrop" onMouseDown={onCancel}>
       <div
         className="dialog file-dialog"
@@ -217,7 +218,8 @@ export function FileDialog({ client, mode, content, onCancel, onDone }: Props) {
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 

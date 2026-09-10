@@ -1,4 +1,5 @@
 import { useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { colorAt, stopsGradient, type ColorStop } from '../model/focalPlane';
 
 interface Props {
@@ -69,59 +70,62 @@ export function Colorbar({ stops, min, max, onChange }: Props) {
         ))}
       </div>
       <div className="colorbar-label">{min.toPrecision(4)}</div>
-      {editing !== null && stops[editing] && (
-        <div className="dialog-backdrop" onMouseDown={() => setEditing(null)}>
-          <div
-            className="dialog"
-            role="dialog"
-            aria-label="Colour stop"
-            onMouseDown={(e) => e.stopPropagation()}
-          >
-            <h3>Colour stop</h3>
-            <div className="field">
-              <span>Colour</span>
-              <input
-                type="color"
-                aria-label="stop colour"
-                value={stops[editing].color}
-                onChange={(e) =>
-                  onChange(
-                    stops.map((s, i) => (i === editing ? { ...s, color: e.target.value } : s)),
-                  )
-                }
-              />
+      {editing !== null &&
+        stops[editing] &&
+        createPortal(
+          <div className="dialog-backdrop" onMouseDown={() => setEditing(null)}>
+            <div
+              className="dialog"
+              role="dialog"
+              aria-label="Colour stop"
+              onMouseDown={(e) => e.stopPropagation()}
+            >
+              <h3>Colour stop</h3>
+              <div className="field">
+                <span>Colour</span>
+                <input
+                  type="color"
+                  aria-label="stop colour"
+                  value={stops[editing].color}
+                  onChange={(e) =>
+                    onChange(
+                      stops.map((s, i) => (i === editing ? { ...s, color: e.target.value } : s)),
+                    )
+                  }
+                />
+              </div>
+              <div className="field">
+                <span>Value</span>
+                <input
+                  type="number"
+                  aria-label="stop value"
+                  step="any"
+                  value={stops[editing].value}
+                  onChange={(e) => {
+                    const v = Number(e.target.value);
+                    if (Number.isFinite(v))
+                      onChange(stops.map((s, i) => (i === editing ? { ...s, value: v } : s)));
+                  }}
+                />
+              </div>
+              <div className="buttons">
+                <button
+                  className="danger"
+                  disabled={stops.length <= 2}
+                  title={stops.length <= 2 ? 'At least two stops are needed' : 'Remove this stop'}
+                  onClick={() => {
+                    onChange(stops.filter((_s, i) => i !== editing));
+                    setEditing(null);
+                  }}
+                >
+                  Remove
+                </button>
+                <button onClick={() => setEditing(null)}>Ok</button>
+              </div>
             </div>
-            <div className="field">
-              <span>Value</span>
-              <input
-                type="number"
-                aria-label="stop value"
-                step="any"
-                value={stops[editing].value}
-                onChange={(e) => {
-                  const v = Number(e.target.value);
-                  if (Number.isFinite(v))
-                    onChange(stops.map((s, i) => (i === editing ? { ...s, value: v } : s)));
-                }}
-              />
-            </div>
-            <div className="buttons">
-              <button
-                className="danger"
-                disabled={stops.length <= 2}
-                title={stops.length <= 2 ? 'At least two stops are needed' : 'Remove this stop'}
-                onClick={() => {
-                  onChange(stops.filter((_s, i) => i !== editing));
-                  setEditing(null);
-                }}
-              >
-                Remove
-              </button>
-              <button onClick={() => setEditing(null)}>Ok</button>
-            </div>
-          </div>
-        </div>
-      )}
+          </div>,
+          document.body,
+        )}
     </div>
   );
 }

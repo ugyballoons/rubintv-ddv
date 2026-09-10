@@ -20,6 +20,7 @@ import { PolarPanel } from '../charts/PolarPanel';
 import { BoxPanel } from '../charts/BoxPanel';
 import { SeriesEditor } from './SeriesEditor';
 import { AxisEditor } from './AxisEditor';
+import { Icon } from '../app/Icon';
 import { fmt } from '../charts/ChartTooltip';
 import { axisFor, toPlottable, type PlottableColumn } from '../model/columnData';
 import type { AxisConfig } from '../model/workspace';
@@ -86,6 +87,8 @@ export function ChartWindow({ window: w, client }: { window: WindowMeta; client:
     <>
       <div className="window-toolbar">
         <button
+          className="icon"
+          aria-label="+ series"
           onClick={() => {
             const s = newSeries();
             if (s) setEditing({ series: s, isNew: true });
@@ -93,7 +96,7 @@ export function ChartWindow({ window: w, client }: { window: WindowMeta; client:
           disabled={!instrument?.database}
           title="Add a series"
         >
-          + series
+          <Icon name="plus" />
         </button>
         <span className="legend" aria-label="series legend">
           {chart.series.map((s) => (
@@ -117,7 +120,7 @@ export function ChartWindow({ window: w, client }: { window: WindowMeta; client:
               onClick={() => updateChart(w.id, { tool: 'select' })}
               title="Drag to select points"
             >
-              select
+              <Icon name="select" size={13} /> select
             </button>
             <button
               role="radio"
@@ -126,24 +129,35 @@ export function ChartWindow({ window: w, client }: { window: WindowMeta; client:
               onClick={() => updateChart(w.id, { tool: 'drillDown' })}
               title="Drag to keep only those points in every chart (Esc clears)"
             >
-              drill down
+              <Icon name="drill" size={13} /> drill down
             </button>
           </span>
         )}
-        <button onClick={() => setAxesOpen(true)} title="Axis labels, scales and directions">
-          axes…
-        </button>
+        <span className="grow" />
+        <span className="grow" />
         <button
-          onClick={() => setResetToken((t) => t + 1)}
-          title="Reset pan and zoom to fit the data"
+          className="icon"
+          aria-label="axes…"
+          onClick={() => setAxesOpen(true)}
+          title="Axes: labels, scales, directions"
         >
-          reset axes
+          <Icon name="axes" />
         </button>
         <button
+          className="icon"
+          aria-label="reset axes"
+          onClick={() => setResetToken((t) => t + 1)}
+          title="Reset pan and zoom"
+        >
+          <Icon name="reset" />
+        </button>
+        <button
+          className="icon"
+          aria-label="sync"
           onClick={() => chart.series.forEach((s) => requestReload(s.id))}
           title="Fetch this chart's data again"
         >
-          sync
+          <Icon name="sync" />
         </button>
         {(w.type === 'histogram' || w.type === 'box') && (
           <label>
@@ -179,7 +193,23 @@ export function ChartWindow({ window: w, client }: { window: WindowMeta; client:
           />
         ))}
         {chart.series.length === 0 ? (
-          <div className="centered-note">Add a series to plot.</div>
+          <div className="centered-note">
+            <span>
+              Nothing to plot yet.
+              <br />
+              <button
+                className="primary"
+                style={{ marginTop: 10 }}
+                onClick={() => {
+                  const s = newSeries();
+                  if (s) setEditing({ series: s, isNew: true });
+                }}
+                disabled={!instrument?.database}
+              >
+                <Icon name="plus" /> Add a series
+              </button>
+            </span>
+          </div>
         ) : (
           <SeriesChart window={w} resetToken={resetToken} onHover={setHover} />
         )}
@@ -249,6 +279,9 @@ function WindowStatus({
   const hasError = seriesIds.some((id) => entries[id]?.status === 'error');
   return (
     <div className="window-status" data-testid="chart-status">
+      {seriesIds.some((id) => ['counting', 'loading'].includes(entries[id]?.status ?? '')) && (
+        <span className="spinner" aria-label="loading" />
+      )}
       <span className={hasError ? 'error' : undefined}>{parts.join(' · ')}</span>
       {hover && (
         <span className="coords">

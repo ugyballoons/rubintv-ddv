@@ -29,7 +29,15 @@ export function WorkspaceView({ client }: { client: DdvClient }) {
   return (
     <div className="workspace" data-testid="workspace">
       {list.length === 0 && (
-        <div className="empty">Select an instrument, then add a chart from the toolbar.</div>
+        <div className="empty">
+          <div className="empty-card">
+            <h2>Empty workspace</h2>
+            <p>
+              Choose an instrument, then add a chart or the focal plane from the toolbar. Load a
+              saved workspace from the Workspace menu.
+            </p>
+          </div>
+        </div>
       )}
       {drillDown && (
         <div className="drill-banner" role="status">

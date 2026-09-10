@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { createPortal } from 'react-dom';
 import type { EqualityQueryJson, ParentQueryJson, QueryJson } from '../protocol/types';
 import type { Instrument } from '../model/schema';
 import type { ColumnRef } from '../model/workspace';
@@ -128,7 +129,7 @@ export function QueryEditor({ instrument, initial, title, onCancel, onAccept }: 
     </div>
   );
 
-  return (
+  return createPortal(
     <div className="dialog-backdrop" onMouseDown={onCancel}>
       <div
         className="dialog query-dialog"
@@ -194,7 +195,8 @@ export function QueryEditor({ instrument, initial, title, onCancel, onAccept }: 
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 

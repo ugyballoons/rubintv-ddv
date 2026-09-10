@@ -3,6 +3,7 @@ import type { WindowMeta } from '../model/workspace';
 import { useWorkspace } from '../store/workspace';
 import { useSeriesData } from '../store/seriesData';
 import { ChartWindow } from './ChartWindow';
+import { Icon } from '../app/Icon';
 import { FocalPlaneWindow } from '../focalPlane/FocalPlaneWindow';
 import { DetectorSelectorWindow } from '../focalPlane/DetectorSelectorWindow';
 import { dropLoad } from '../hooks/useSeriesLoader';
@@ -40,7 +41,7 @@ export function WindowFrame({
           onClick={close}
           title="Remove window"
         >
-          ×
+          <Icon name="clear" size={14} />
         </button>
       </div>
       {w.chart ? (

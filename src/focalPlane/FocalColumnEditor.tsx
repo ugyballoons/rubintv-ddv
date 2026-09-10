@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { createPortal } from 'react-dom';
 import type { Instrument } from '../model/schema';
 import type { ColumnRef } from '../model/workspace';
 
@@ -20,7 +21,7 @@ export function FocalColumnEditor({ instrument, field, onCancel, onAccept }: Pro
       .find((t) => t.name === table)
       ?.columns.filter((c) => c.kind === 'number' && c.name !== 'detector') ?? [];
   const [column, setColumn] = useState(field?.name ?? columns[0]?.name ?? '');
-  return (
+  return createPortal(
     <div className="dialog-backdrop" onMouseDown={onCancel}>
       <div
         className="dialog"
@@ -84,6 +85,7 @@ export function FocalColumnEditor({ instrument, field, onCancel, onAccept }: Pro
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

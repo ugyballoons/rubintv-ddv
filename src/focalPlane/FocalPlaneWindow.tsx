@@ -8,6 +8,7 @@ import { useFocalPlaneLoader } from '../hooks/useFocalPlaneLoader';
 import { FocalPlaneView } from './FocalPlaneView';
 import { Colorbar } from './Colorbar';
 import { FocalColumnEditor } from './FocalColumnEditor';
+import { Icon } from '../app/Icon';
 
 const BASE_INTERVAL_MS = 500;
 
@@ -84,6 +85,7 @@ export function FocalPlaneWindow({ window: w, client }: { window: WindowMeta; cl
           onClick={() => setEditorOpen(true)}
           title="Choose the column shown on the focal plane"
         >
+          <Icon name="column" />
           {focal.field ? `${focal.field.schema}.${focal.field.name}` : 'choose column…'}
         </button>
         {id && (
@@ -118,25 +120,28 @@ export function FocalPlaneWindow({ window: w, client }: { window: WindowMeta; cl
       </div>
       <div className="window-status focal-controls">
         <button
+          className="icon"
           aria-label={playing ? 'pause' : 'play'}
           disabled={frameCount < 2}
           onClick={() => setPlaying((p) => !p)}
         >
-          {playing ? '❚❚' : '▶'}
+          <Icon name={playing ? 'pause' : 'play'} />
         </button>
         <button
+          className="icon"
           aria-label="previous exposure"
           disabled={frameCount < 2}
           onClick={() => setIndex((i) => Math.max(0, i - 1))}
         >
-          −
+          <Icon name="prev" />
         </button>
         <button
+          className="icon"
           aria-label="next exposure"
           disabled={frameCount < 2}
           onClick={() => setIndex((i) => Math.min(frameCount - 1, i + 1))}
         >
-          +
+          <Icon name="next" />
         </button>
         <input
           type="range"

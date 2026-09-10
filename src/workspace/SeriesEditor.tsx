@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { createPortal } from 'react-dom';
 import type { AxisLocation } from 'rubin-charts';
 import type { Instrument } from '../model/schema';
 import type { AxisConfig, ColumnRef, SeriesConfig } from '../model/workspace';
@@ -38,7 +39,7 @@ export function SeriesEditor({
     setDraft((d) => ({ ...d, fields: { ...d.fields, [location]: ref } }));
   const complete = axes.every((a) => draft.fields[a.location]) && draft.name.trim() !== '';
 
-  return (
+  return createPortal(
     <div className="dialog-backdrop" onMouseDown={onCancel}>
       <div
         className="dialog series-dialog"
@@ -162,6 +163,7 @@ export function SeriesEditor({
           />
         )}
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

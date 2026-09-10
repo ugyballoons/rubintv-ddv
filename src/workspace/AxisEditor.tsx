@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { createPortal } from 'react-dom';
 import type { AxisConfig } from '../model/workspace';
 
 interface Props {
@@ -12,7 +13,7 @@ export function AxisEditor({ axes, onCancel, onAccept }: Props) {
   const [draft, setDraft] = useState<AxisConfig[]>([...axes]);
   const patch = (i: number, p: Partial<AxisConfig>) =>
     setDraft((d) => d.map((a, k) => (k === i ? { ...a, ...p } : a)));
-  return (
+  return createPortal(
     <div className="dialog-backdrop" onMouseDown={onCancel}>
       <div
         className="dialog"
@@ -53,6 +54,7 @@ export function AxisEditor({ axes, onCancel, onAccept }: Props) {
           <button onClick={() => onAccept(draft)}>Accept</button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
