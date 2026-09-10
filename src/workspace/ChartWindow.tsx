@@ -61,16 +61,20 @@ export function ChartWindow({ window: w, client }: { window: WindowMeta; client:
 
   const commitSeries = (s: SeriesConfig) => {
     updateChart(w.id, (c) => {
-      const exists = c.series.some((x) => x.id === s.id);
+      const previous = c.series.find((x) => x.id === s.id);
+      const exists = !!previous;
       return {
         ...c,
         series: exists ? c.series.map((x) => (x.id === s.id ? s : x)) : [...c.series, s],
-        // Placeholder axis labels take the field name the first time a series is committed.
-        axes: c.axes.map((a) =>
-          isPlaceholderLabel(a.label) && s.fields[a.location]
-            ? { ...a, label: columnRefId(s.fields[a.location]!) }
-            : a,
-        ),
+        // Axis labels follow the field while they are still automatic: the
+        // placeholder, or the previous field's name. A label the user typed stays.
+        axes: c.axes.map((a) => {
+          const next = s.fields[a.location];
+          if (!next) return a;
+          const prev = previous?.fields[a.location];
+          const automatic = isPlaceholderLabel(a.label) || (prev && a.label === columnRefId(prev));
+          return automatic ? { ...a, label: columnRefId(next) } : a;
+        }),
       };
     });
     setEditing(null);

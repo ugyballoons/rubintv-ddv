@@ -114,3 +114,31 @@ test('the axis editor changes labels and scales and they persist', async ({ app,
     mapping: { type: 'log10' },
   });
 });
+
+test('axis labels follow a series when its columns change, unless edited by hand', async ({
+  app,
+  page,
+}) => {
+  const win = await app.addChart('Scatter plot');
+  await app.addSeries(win, { bottom: 'ra', left: 'dec' });
+  await app.waitLoaded(win);
+  const labels = async () => (
+    Object.values(await app.saveJson()).length,
+    (Object.values((await app.saveJson()).windows)[0] as any).state.axisInfo.map(
+      (a: any) => a.label,
+    )
+  );
+  expect(await labels()).toEqual(['exposure.ra', 'exposure.dec']);
+  // a hand-edited y label survives; the automatic x label follows the new column
+  await win.getByRole('button', { name: 'axes…' }).click();
+  const ax = page.getByRole('dialog', { name: 'Edit axes' });
+  await ax.locator('input[aria-label="left label"]').fill('Declination');
+  await ax.getByRole('button', { name: 'Accept' }).click();
+  await win.locator('.legend button').first().click();
+  const dlg = page.getByRole('dialog', { name: /Edit/ });
+  await dlg.locator('select[aria-label="bottom column"]').selectOption('obs_start_mjd');
+  await dlg.locator('select[aria-label="left column"]').selectOption('exposure_id');
+  await dlg.getByRole('button', { name: 'Accept' }).click();
+  await app.waitLoaded(win);
+  expect(await labels()).toEqual(['exposure.obs_start_mjd', 'Declination']);
+});
