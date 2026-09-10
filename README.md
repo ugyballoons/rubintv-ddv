@@ -37,6 +37,20 @@ npm run dev
 
 Open http://127.0.0.1:5173/rubintv/ddv/ and choose the `testdb` instrument.
 
+### End-to-end tests
+
+The Playwright suite in `e2e/` drives the real app against the synthetic
+backend. Start that backend on its own port (it must not share a broker with a
+real worker), then run the tests; they start a second Vite server on port 5174:
+
+```
+scripts/dev-stack.sh          # mock broker + sqlite worker on port 9927
+npm run e2e                   # Playwright's Chromium (npx playwright install chromium once)
+E2E_BROWSER_CHANNEL=chrome npm run e2e   # or an installed Chrome
+```
+
+Tests skip themselves when no broker is listening on the port.
+
 The build lands in `dist/` and is meant to be mounted by RubinTV at `{prefix}/ddv`,
 exactly where the Flutter build is served today. Set `VITE_BASE` to change the mount path.
 

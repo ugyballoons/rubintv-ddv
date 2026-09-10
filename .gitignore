@@ -26,3 +26,5 @@ dist-ssr
 # local config
 .env
 .dev-user/
+test-results/
+playwright-report/
