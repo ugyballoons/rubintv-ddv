@@ -380,6 +380,11 @@ Small, and all backwards compatible with the Flutter client:
    off by one and clients see timeouts. Match replies to requests by
    `requestId` and only free a worker when it actually replies. Found during
    the phase-1 browser tests.
+9. Grouped aggregation: `load columns` with `aggregator` returns one scalar per
+   column. A `group_by` parameter (for example `group_by: ["exposure.day_obs"]`
+   with `aggregator: "count"`) would let the client ask for exposures per
+   night in one small reply. Today the calendar loads `exposure.day_obs` for
+   every row and counts client-side, about 4 MB and two seconds on LSSTCam.
 
 ## 7. Risks
 
