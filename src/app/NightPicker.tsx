@@ -74,6 +74,11 @@ export function NightPicker({ client }: { client: DdvClient }) {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
+  // Counts can arrive after the popover opened; with nothing selected, show the latest night with data.
+  useEffect(() => {
+    if (open && latest && nights.kind === 'none')
+      setView({ year: Math.floor(latest / 10000), month: Math.floor((latest % 10000) / 100) - 1 });
+  }, [open, latest, nights.kind]);
   useEffect(() => {
     if (!open) return;
     const close = (e: MouseEvent) => {
