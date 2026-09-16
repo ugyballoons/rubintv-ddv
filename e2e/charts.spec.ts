@@ -142,3 +142,30 @@ test('axis labels follow a series when its columns change, unless edited by hand
   await app.waitLoaded(win);
   expect(await labels()).toEqual(['exposure.obs_start_mjd', 'Declination']);
 });
+
+test('polar scatter selects a sector by dragging around the centre', async ({ app, page }) => {
+  const win = await app.addChart('Polar scatter plot');
+  await app.addSeries(win, { radial: 'dec', angular: 'ra' });
+  const status = await app.waitLoaded(win);
+  const total = Number(status.match(/([\d,]+) rows/)![1].replace(/,/g, ''));
+  // From straight above the centre a quarter turn clockwise to the right. The
+  // default angular axis is counter-clockwise, so that is the data range 270°–360°.
+  await app.dragOn(win, 0.5, 0.2, 0.7, 0.5);
+  const s = await app.state();
+  expect(s.selected).toBeGreaterThan(0);
+  expect(s.selected).toBeLessThan(total);
+  const id = (await win.getAttribute('data-testid'))!.replace('window-', '');
+  const info = (await page.evaluate((i) => window.__ddv!.chart(i), id)) as {
+    series: { id?: string; data?: number[][] }[];
+  };
+  const overlay = info.series.find((x) => x.id === '__selected__')!;
+  expect(overlay.data!.length).toBeGreaterThan(0);
+  for (const [, theta] of overlay.data!) expect(theta >= 268 || theta <= 2).toBe(true);
+  const c = (await win.locator('canvas').first().boundingBox())!;
+  await page.mouse.move(c.x + c.width * 0.5, c.y + c.height * 0.3);
+  await expect(win.locator('.window-status .coords')).toContainText(
+    /exposure\.dec .+ · exposure\.ra .+/,
+  );
+  await app.dragOn(win, 0.5, 0.5, 0.5, 0.5); // a click clears
+  expect((await app.state()).selected).toBe(0);
+});

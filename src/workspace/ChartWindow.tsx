@@ -380,10 +380,13 @@ function SeriesChart({
   const columnKind = (ref: { name: string; schema: string }) =>
     instrument?.tables.find((t) => t.name === ref.schema)?.columns.find((c) => c.name === ref.name)
       ?.kind ?? 'number';
+  // rubin-charts series are (x, y); a polar series takes x = angle, y = radius.
   const [ax, ay] =
     w.type === 'histogram'
       ? (['bottom', 'bottom'] as const)
-      : (chart.axes.map((a) => a.location) as [AxisLocation, AxisLocation]);
+      : w.type === 'polarScatter'
+        ? (['angular', 'radial'] as const)
+        : (chart.axes.map((a) => a.location) as [AxisLocation, AxisLocation]);
   const built = useMemo(() => {
     const specs: SeriesSpec[] = [];
     let xCol: PlottableColumn | undefined;
@@ -485,6 +488,8 @@ function SeriesChart({
           radialAxis={axisSpec('radial')}
           angularAxis={axisSpec('angular')}
           selected={selected}
+          onSelect={onSelect}
+          onHover={onHover}
         />
       );
     case 'histogram':

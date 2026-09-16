@@ -226,9 +226,9 @@ needing Plotly for any part. Open items carried into phase 2: the frame rate
 with three or four linked 100k panels sits at 32–38 fps, dominated by ECharts
 repainting the large base series when the shared selection changes (throttle
 preview broadcasts to linked charts to ~20 Hz, or draw the base layer once to
-an offscreen canvas); selection _from_ a polar chart (sector drag) is not yet
-implemented; histograms do not yet show bins partially covered by a selection
-made elsewhere.
+an offscreen canvas); histograms do not yet show bins partially covered by a
+selection made elsewhere. (Selection _from_ a polar chart by sector drag was
+added on 2026-09-14.)
 
 ### 3.4 Alternatives considered
 
@@ -354,6 +354,7 @@ phase 2 if a second person is available.
 | 2026-09-09 | 3      | Focal plane window (SVG geometry, colorbar with editable stops, playback, CCD column editor), detector selector, Flutter-format persistence; dev worker serves a synthetic ccdexposure table and LSSTCam geometry for testdb.                                                   |
 | 2026-09-09 | 4      | Remote file dialog over the websocket (browse, new folder, rename, duplicate, delete, save, load) wired into the Workspace menu.                                                                                                                                                |
 | 2026-09-10 | 1–3    | Verified against the real consdb through the user's remote analysis-service worker: LSSTCam schema and geometry, night 2026-07-13 (810 visits) in scatter and histogram, focal plane from ccdvisit1_quicklook.psf_sigma, selection-driven focal-plane reload.                   |
+| 2026-09-14 | 2      | Polar sector selection: drag sets the radial band, the angle swept about the centre sets the arc (a full turn selects an annulus); hover readout; polar series now take the angular column as the angle and the radial column as the radius.                                    |
 | 2026-09-10 | polish | Playwright e2e suite (15 tests) in the repo; tooltips and coordinate readout; reset axes, sync, copy selection, leave-page guard, X/Y zoom keys; datetime and categorical axes; design pass (tokens, icons, window chrome, dialogs in a portal). Verified on real LSSTCam data. |
 | 2026-09-10 | review | Night picker calendar (nights with data, single/range/set), global Refresh, histogram inner bars for linked selections, instrument loading indicator, detector selector fit, no-rows message, Copy feedback, YYYY-MM-DD dates. 18 e2e tests.                                    |
 
