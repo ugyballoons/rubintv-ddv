@@ -9,6 +9,7 @@ import {
   type AxisSpec,
   type DataIdKey,
   type SeriesSpec,
+  type YAxisIndex,
 } from 'rubin-charts';
 import { EChart } from './EChart';
 import type { EChartsInstance } from './echarts';
@@ -21,6 +22,8 @@ interface Props {
   series: readonly SeriesSpec[];
   xAxis: AxisSpec;
   yAxis: AxisSpec;
+  /** Right-hand axis for series with `yAxisIndex` 1; see `planYAxes`. */
+  secondaryYAxis?: AxisSpec;
   selected: ReadonlySet<DataIdKey>;
   resetToken?: number;
   registryId?: string;
@@ -49,6 +52,7 @@ export function ScatterPanel({
   series,
   xAxis,
   yAxis,
+  secondaryYAxis,
   selected,
   registryId,
   resetToken,
@@ -69,18 +73,36 @@ export function ScatterPanel({
   const onHoverRef = useLatest(onHover);
 
   const option = useMemo(
-    () => buildScatterOption({ series, xAxis, yAxis, selected: new Set(), drillDown: null }),
-    [series, xAxis, yAxis],
+    () =>
+      buildScatterOption({
+        series,
+        xAxis,
+        yAxis,
+        secondaryYAxis,
+        selected: new Set(),
+        drillDown: null,
+      }),
+    [series, xAxis, yAxis, secondaryYAxis],
   );
   const patch = useMemo<EChartsCoreOption>(
-    () => ({ series: [selectionOverlaySeries(series, selected)] }),
-    [series, selected],
+    () => ({ series: selectionOverlaySeries(series, selected, undefined, !!secondaryYAxis) }),
+    [series, selected, secondaryYAxis],
+  );
+  // Hit-testing works in each series' own axes: pixel rectangles and pick boxes
+  // are converted per y axis, and each index maps y through its axis' scale.
+  const yAxes = useMemo(
+    () => (secondaryYAxis ? [yAxis, secondaryYAxis] : [yAxis]),
+    [yAxis, secondaryYAxis],
+  );
+  const axisOf = useCallback(
+    (k: number): YAxisIndex => (secondaryYAxis ? (series[k].yAxisIndex ?? 0) : 0),
+    [series, secondaryYAxis],
   );
   const xMap = mappingFor(xAxis.mapping);
-  const yMap = mappingFor(yAxis.mapping);
+  const yMaps = useMemo(() => yAxes.map((a) => mappingFor(a.mapping)), [yAxes]);
   const indexes = useMemo(
-    () => series.map((s) => new PointIndex(s.x as Float64Array, s.y, xMap, yMap)),
-    [series, xMap, yMap],
+    () => series.map((s, k) => new PointIndex(s.x as Float64Array, s.y, xMap, yMaps[axisOf(k)])),
+    [series, xMap, yMaps, axisOf],
   );
 
   // Holding X or Y limits zoom to that axis via the two inside dataZooms.
@@ -101,18 +123,22 @@ export function ScatterPanel({
       const c = chart.current;
       if (!c) return;
       const t0 = performance.now();
-      const [ax, ay] = c.convertFromPixel({ xAxisIndex: 0, yAxisIndex: 0 }, [
-        r.x0,
-        r.y0,
-      ]) as number[];
-      const [bx, by] = c.convertFromPixel({ xAxisIndex: 0, yAxisIndex: 0 }, [
-        r.x1,
-        r.y1,
-      ]) as number[];
+      const corners = yAxes.map((_, yAxisIndex) => {
+        const [ax, ay] = c.convertFromPixel({ xAxisIndex: 0, yAxisIndex }, [
+          r.x0,
+          r.y0,
+        ]) as number[];
+        const [bx, by] = c.convertFromPixel({ xAxisIndex: 0, yAxisIndex }, [
+          r.x1,
+          r.y1,
+        ]) as number[];
+        return [ax, ay, bx, by] as const;
+      });
       const ids = new Set<DataIdKey>();
       let total = 0;
       indexes.forEach((index, k) => {
         total += series[k].dataIds.length;
+        const [ax, ay, bx, by] = corners[axisOf(k)];
         for (const i of index.rangeInData(ax, ay, bx, by)) ids.add(series[k].dataIds[i]);
       });
       onSelect(ids, committed);
@@ -120,7 +146,7 @@ export function ScatterPanel({
         `${committed ? 'selected' : 'preview'} ${ids.size} of ${total} in ${(performance.now() - t0).toFixed(1)} ms`,
       );
     },
-    [indexes, series, onSelect, onTiming],
+    [indexes, series, yAxes, axisOf, onSelect, onTiming],
   );
   const selectRef = useLatest(select);
 
@@ -140,21 +166,31 @@ export function ScatterPanel({
       if (tooltipTimer.current) clearTimeout(tooltipTimer.current);
       setTooltip(null);
       tooltipTimer.current = setTimeout(() => {
-        // Pick box of ±PICK_PX pixels, converted to linear units for the index.
-        const [x1, y1] = c.convertFromPixel({ xAxisIndex: 0, yAxisIndex: 0 }, [
-          px + PICK_PX,
-          py + PICK_PX,
-        ]) as number[];
-        const halfW = Math.abs(xMap.forward(x1) - xMap.forward(dx));
-        const halfH = Math.abs(yMap.forward(y1) - yMap.forward(dy));
+        // Pick box of ±PICK_PX pixels, converted to linear units for the index, per y axis.
+        const picks = yAxes.map((_, yAxisIndex) => {
+          const yMap = yMaps[yAxisIndex];
+          const [cx, cy] = c.convertFromPixel({ xAxisIndex: 0, yAxisIndex }, [px, py]) as number[];
+          const [x1, y1] = c.convertFromPixel({ xAxisIndex: 0, yAxisIndex }, [
+            px + PICK_PX,
+            py + PICK_PX,
+          ]) as number[];
+          return {
+            x: xMap.forward(cx),
+            y: yMap.forward(cy),
+            halfW: Math.abs(xMap.forward(x1) - xMap.forward(cx)),
+            halfH: Math.abs(yMap.forward(y1) - yMap.forward(cy)),
+          };
+        });
         let best: { k: number; i: number } | null = null;
         for (let k = 0; k < indexes.length && !best; k++) {
-          const i = indexes[k].nearestInLinear(xMap.forward(dx), yMap.forward(dy), halfW, halfH);
+          const p = picks[axisOf(k)];
+          const i = indexes[k].nearestInLinear(p.x, p.y, p.halfW, p.halfH);
           if (i >= 0) best = { k, i };
         }
         if (!best) return;
         const hit: { k: number; i: number } = best;
         const s = series[hit.k];
+        const sAxis = yAxes[axisOf(hit.k)];
         const id = parseDataIdKey(s.dataIds[hit.i]);
         setTooltip({
           x: px,
@@ -162,7 +198,7 @@ export function ScatterPanel({
           title: s.name,
           entries: [
             { label: xAxis.label, value: formatValue((s.x as Float64Array)[hit.i], xAxis) },
-            { label: yAxis.label, value: formatValue(s.y[hit.i], yAxis) },
+            { label: sAxis.label, value: formatValue(s.y[hit.i], sAxis) },
             {
               label: 'night',
               value: String(id.dayObs).replace(/(\d{4})(\d{2})(\d{2})/, '$1-$2-$3'),
@@ -172,7 +208,7 @@ export function ScatterPanel({
         });
       }, TOOLTIP_DELAY_MS);
     },
-    [indexes, series, xAxis, yAxis, xMap, yMap, onHoverRef],
+    [indexes, series, xAxis, yAxes, xMap, yMaps, axisOf, onHoverRef],
   );
   const hoverRef = useLatest(hover);
 

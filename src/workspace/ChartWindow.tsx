@@ -26,6 +26,10 @@ import { isNumeric } from '../model/schema';
 import { describeNights } from '../model/nights';
 import { axisFor, toPlottable, type PlottableColumn } from '../model/columnData';
 import type { AxisConfig } from '../model/workspace';
+import { planYAxes } from '../model/yAxes';
+
+/** Chart types whose series may split across two y axes when they plot different quantities. */
+const TWIN_AXIS_TYPES: readonly string[] = ['cartesianScatter', 'box'];
 
 export function ChartWindow({ window: w, client }: { window: WindowMeta; client: DdvClient }) {
   const chart = w.chart!;
@@ -60,18 +64,24 @@ export function ChartWindow({ window: w, client }: { window: WindowMeta; client:
     };
   };
 
+  const yLocation = TWIN_AXIS_TYPES.includes(w.type) ? chart.axes[1]?.location : undefined;
+  const plan = planYAxes(chart.series, yLocation, instrument);
+
   const commitSeries = (s: SeriesConfig) => {
     updateChart(w.id, (c) => {
       const previous = c.series.find((x) => x.id === s.id);
       const exists = !!previous;
+      const series = exists ? c.series.map((x) => (x.id === s.id ? s : x)) : [...c.series, s];
+      // A series bound for the secondary y axis names that axis, not the configured one.
+      const onSecondary = planYAxes(series, yLocation, instrument).index.get(s.id) === 1;
       return {
         ...c,
-        series: exists ? c.series.map((x) => (x.id === s.id ? s : x)) : [...c.series, s],
+        series,
         // Axis labels follow the field while they are still automatic: the
         // placeholder, or the previous field's name. A label the user typed stays.
         axes: c.axes.map((a) => {
           const next = s.fields[a.location];
-          if (!next) return a;
+          if (!next || (onSecondary && a.location === yLocation)) return a;
           const prev = previous?.fields[a.location];
           const automatic = isPlaceholderLabel(a.label) || (prev && a.label === columnRefId(prev));
           return automatic ? { ...a, label: columnRefId(next) } : a;
@@ -108,7 +118,7 @@ export function ChartWindow({ window: w, client }: { window: WindowMeta; client:
             <button
               key={s.id}
               onClick={() => setEditing({ series: s, isNew: false })}
-              title={`Edit ${s.name}`}
+              title={`Edit ${s.name}${plan.index.get(s.id) === 1 ? ' (right axis)' : ''}`}
             >
               <span className="swatch" style={{ background: s.marker.color }} />
               {s.name}
@@ -213,7 +223,16 @@ export function ChartWindow({ window: w, client }: { window: WindowMeta; client:
         )}
       </div>
       {chart.series.length > 0 && (
-        <WindowStatus seriesIds={chart.series.map((s) => s.id)} hover={hover} axes={chart.axes} />
+        <WindowStatus
+          seriesIds={chart.series.map((s) => s.id)}
+          hover={hover}
+          axes={chart.axes}
+          warning={
+            plan.overflow.length > 0
+              ? `${plan.overflow.join(', ')}: no third y axis, drawn on the ${yLocation} scale`
+              : undefined
+          }
+        />
       )}
       {axesOpen && (
         <AxisEditor
@@ -259,10 +278,12 @@ function WindowStatus({
   seriesIds,
   hover,
   axes,
+  warning,
 }: {
   seriesIds: string[];
   hover: { x: string; y: string } | null;
   axes: readonly AxisConfig[];
+  warning?: string;
 }) {
   const entries = useSeriesData((s) => s.entries);
   const parts = seriesIds.map((id) => {
@@ -282,6 +303,15 @@ function WindowStatus({
         <span className="spinner" aria-label="loading" />
       )}
       <span className={hasError ? 'error' : undefined}>{parts.join(' · ')}</span>
+      {warning && (
+        <span
+          className="warning"
+          title="A chart has at most two y scales"
+          data-testid="axis-warning"
+        >
+          {warning}
+        </span>
+      )}
       {hover && (
         <span className="coords">
           {axes[0]?.label ?? 'x'} {hover.x}
@@ -388,10 +418,17 @@ function SeriesChart({
       : w.type === 'polarScatter'
         ? (['angular', 'radial'] as const)
         : (chart.axes.map((a) => a.location) as [AxisLocation, AxisLocation]);
+  // Series of a second quantity go on a right-hand y axis; see planYAxes.
+  const yLocation = TWIN_AXIS_TYPES.includes(w.type) ? ay : undefined;
+  const plan = useMemo(
+    () => planYAxes(chart.series, yLocation, instrument),
+    [chart.series, yLocation, instrument],
+  );
   const built = useMemo(() => {
     const specs: SeriesSpec[] = [];
     let xCol: PlottableColumn | undefined;
     let yCol: PlottableColumn | undefined;
+    let y2Col: PlottableColumn | undefined;
     chart.series.forEach((s, k) => {
       const data = readyData[k];
       if (!data) return;
@@ -403,22 +440,25 @@ function SeriesChart({
       const x = col(ax);
       const y = col(ay);
       if (!x || !y) return;
-      // Axis kinds and category labels come from the first series that has data.
+      const yAxisIndex = plan.index.get(s.id) ?? 0;
+      // Axis kinds and category labels come from the first series on each axis that has data.
       xCol ??= x;
-      yCol ??= y;
-      const spec = {
+      if (yAxisIndex === 1) y2Col ??= y;
+      else yCol ??= y;
+      const spec: SeriesSpec = {
         id: s.id,
         name: s.name,
         x: x.values,
         y: y.values,
         dataIds: data.dataIds,
         marker: s.marker,
+        yAxisIndex,
       };
       specs.push(drillDown ? filterSeriesSpec(spec, drillDown) : spec);
     });
-    return { specs, xCol, yCol };
+    return { specs, xCol, yCol, y2Col };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [chart.series, chart.axes, w.type, readyData, drillDown, instrument]);
+  }, [chart.series, chart.axes, w.type, readyData, drillDown, instrument, plan]);
   const specs = built.specs;
   const xAxisSpec = useMemo(
     () =>
@@ -429,6 +469,19 @@ function SeriesChart({
     () =>
       axisFor(axisSpecs[ay], built.yCol, !!chart.axes.find((a) => a.location === ay)?.mjdLabels),
     [axisSpecs, ay, built.yCol, chart.axes],
+  );
+  // The secondary axis shares the configured axis' scale and direction but is
+  // titled after its own column and takes its kind from its own data.
+  const secondaryYAxisSpec = useMemo(
+    () =>
+      plan.secondaryLabel === null
+        ? undefined
+        : axisFor(
+            { ...axisSpecs[ay], location: 'right', label: plan.secondaryLabel },
+            built.y2Col,
+            !!chart.axes.find((a) => a.location === ay)?.mjdLabels,
+          ),
+    [axisSpecs, ay, built.y2Col, chart.axes, plan.secondaryLabel],
   );
 
   // Panels report hover in data units; format them as the column kind reads (dates, whole numbers).
@@ -484,6 +537,7 @@ function SeriesChart({
           series={specs}
           xAxis={xAxisSpec}
           yAxis={yAxisSpec}
+          secondaryYAxis={secondaryYAxisSpec}
           selected={selected}
           onSelect={onSelect}
         />
@@ -531,9 +585,11 @@ function SeriesChart({
             cross: s.y,
             dataIds: s.dataIds,
             color: s.marker.color,
+            crossAxisIndex: s.yAxisIndex,
           }))}
           mainAxis={xAxisSpec}
           crossAxis={yAxisSpec}
+          secondaryCrossAxis={secondaryYAxisSpec}
           nBins={chart.nBins}
           onSelect={onSelect}
         />

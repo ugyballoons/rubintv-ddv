@@ -45,15 +45,28 @@ export default function App() {
           const ext = (n: string) => c.getModel().getComponent(n)?.axis.scale.getExtent() ?? null;
           const opt = (
             c as unknown as {
-              getOption(): { series?: { id?: string; type?: string; data?: unknown[] }[] };
+              getOption(): {
+                series?: { id?: string; type?: string; data?: unknown[]; yAxisIndex?: number }[];
+                yAxis?: {
+                  name?: string;
+                  position?: string;
+                  axisLine?: { lineStyle?: { color?: string } };
+                }[];
+              };
             }
           ).getOption();
           return {
             x: ext('xAxis'),
             y: ext('yAxis'),
+            yAxes: (opt.yAxis ?? []).map((a) => ({
+              name: a.name,
+              position: a.position,
+              color: a.axisLine?.lineStyle?.color,
+            })),
             series: (opt.series ?? []).map((s) => ({
               id: s.id,
               type: s.type,
+              yAxisIndex: s.yAxisIndex,
               rows: s.data?.length ?? 0,
               data: s.data?.slice(0, 200),
             })),

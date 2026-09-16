@@ -377,6 +377,9 @@ input[type='checkbox'] {
   flex: none;
   min-height: 22px;
 }
+.window-status .warning {
+  color: var(--warning, #b26a00);
+}
 .window-status .error {
   color: var(--bad);
 }

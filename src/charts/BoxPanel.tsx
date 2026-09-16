@@ -9,6 +9,7 @@ import {
   type AxisSpec,
   type BinSelectionState,
   type DataIdKey,
+  type YAxisIndex,
 } from 'rubin-charts';
 import { EChart } from './EChart';
 import type { EChartsInstance } from './echarts';
@@ -21,12 +22,16 @@ export interface BoxSeries {
   readonly cross: Float64Array;
   readonly dataIds: readonly DataIdKey[];
   readonly color: string;
+  /** Which cross axis the boxes are summarised against; see `planYAxes`. */
+  readonly crossAxisIndex?: YAxisIndex;
 }
 
 interface Props {
   series: readonly BoxSeries[];
   mainAxis: AxisSpec;
   crossAxis: AxisSpec;
+  /** Far-side cross axis for series with `crossAxisIndex` 1. */
+  secondaryCrossAxis?: AxisSpec;
   nBins: number;
   resetToken?: number;
   registryId?: string;
@@ -38,6 +43,7 @@ export function BoxPanel({
   series,
   mainAxis,
   crossAxis,
+  secondaryCrossAxis,
   nBins,
   registryId,
   resetToken,
@@ -55,12 +61,14 @@ export function BoxPanel({
         main: s.main,
         cross: s.cross,
         color: s.color,
+        crossAxisIndex: s.crossAxisIndex,
       })),
       mainAxis,
       crossAxis,
+      secondaryCrossAxis,
       nBins,
     }),
-    [series, mainAxis, crossAxis, nBins],
+    [series, mainAxis, crossAxis, secondaryCrossAxis, nBins],
   );
   const bins = useMemo(() => computeBoxBins({ ...input, selected: new Map() }), [input]);
   const option = useMemo(
