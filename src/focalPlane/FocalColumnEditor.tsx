@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { createPortal } from 'react-dom';
-import type { Instrument } from '../model/schema';
+import { isNumeric, type Instrument } from '../model/schema';
 import type { ColumnRef } from '../model/workspace';
 
 interface Props {
@@ -19,7 +19,7 @@ export function FocalColumnEditor({ instrument, field, onCancel, onAccept }: Pro
   const columns =
     tables
       .find((t) => t.name === table)
-      ?.columns.filter((c) => c.kind === 'number' && c.name !== 'detector') ?? [];
+      ?.columns.filter((c) => isNumeric(c.kind) && c.name !== 'detector') ?? [];
   const [column, setColumn] = useState(field?.name ?? columns[0]?.name ?? '');
   return createPortal(
     <div className="dialog-backdrop" onMouseDown={onCancel}>
@@ -46,8 +46,7 @@ export function FocalColumnEditor({ instrument, field, onCancel, onAccept }: Pro
                   setColumn(
                     tables
                       .find((t) => t.name === e.target.value)
-                      ?.columns.find((c) => c.kind === 'number' && c.name !== 'detector')?.name ??
-                      '',
+                      ?.columns.find((c) => isNumeric(c.kind) && c.name !== 'detector')?.name ?? '',
                   );
                 }}
               >

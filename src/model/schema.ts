@@ -1,6 +1,12 @@
 import type { DetectorInfo, InstrumentInfo, Schema } from '../protocol/types';
 
-export type ColumnKind = 'number' | 'string' | 'datetime' | 'boolean';
+/**
+ * `integer` and `number` are both plottable; the distinction only changes how
+ * values are displayed (whole-number ticks, bins and readouts).
+ */
+export type ColumnKind = 'integer' | 'number' | 'string' | 'datetime' | 'boolean';
+
+export const isNumeric = (kind: ColumnKind): boolean => kind === 'integer' || kind === 'number';
 
 export interface Column {
   readonly name: string;
@@ -25,12 +31,22 @@ export interface Instrument {
   readonly tables: readonly Table[];
 }
 
-/** Maps every SDM datatype the consdb schemas use; unknown types fall back to string rather than throwing. */
+/**
+ * Maps a SDM datatype to how the client treats the column. The consdb schemas
+ * (cdb_lsstcam, cdb_latiss, cdb_lsstcomcam, cdb_lsstcomcamsim) use exactly
+ * boolean, double, float, int, long, string, text and timestamp; the sqlite
+ * test schema adds char, date and datetime. The worker sends ints as JSON
+ * integers, floats as finite JSON numbers, timestamps as
+ * "YYYY-MM-DD HH:MM:SS[.ffffff]" and dates as "YYYY-MM-DD" (see
+ * `parseTimestampMs`). A `time` would arrive as "HH:MM:SS", which no consdb
+ * column uses; it and any unknown type fall back to string rather than throwing.
+ */
 export function columnKind(datatype: string): ColumnKind {
   switch (datatype.toLowerCase()) {
     case 'int':
     case 'long':
     case 'short':
+      return 'integer';
     case 'float':
     case 'double':
       return 'number';

@@ -3,7 +3,10 @@ import { columnKind, parseInstrument } from './schema';
 
 describe('schema model', () => {
   it('maps SDM datatypes including date and datetime', () => {
-    expect(columnKind('long')).toBe('number');
+    expect(columnKind('long')).toBe('integer');
+    expect(columnKind('int')).toBe('integer');
+    expect(columnKind('float')).toBe('number');
+    expect(columnKind('double')).toBe('number');
     expect(columnKind('char')).toBe('string');
     expect(columnKind('date')).toBe('datetime');
     expect(columnKind('datetime')).toBe('datetime');

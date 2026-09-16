@@ -13,7 +13,7 @@ import {
 import { EChart } from './EChart';
 import type { EChartsInstance } from './echarts';
 import { ChartTooltip, type TooltipData } from './ChartTooltip';
-import { fmt } from './format';
+import { formatValue } from './format';
 import { useZoomAxisKey } from './zoomKeys';
 import { useLatest } from './useLatest';
 
@@ -161,8 +161,8 @@ export function ScatterPanel({
           y: py,
           title: s.name,
           entries: [
-            { label: xAxis.label, value: fmt((s.x as Float64Array)[hit.i]) },
-            { label: yAxis.label, value: fmt(s.y[hit.i]) },
+            { label: xAxis.label, value: formatValue((s.x as Float64Array)[hit.i], xAxis) },
+            { label: yAxis.label, value: formatValue(s.y[hit.i], yAxis) },
             {
               label: 'night',
               value: String(id.dayObs).replace(/(\d{4})(\d{2})(\d{2})/, '$1-$2-$3'),
@@ -172,7 +172,7 @@ export function ScatterPanel({
         });
       }, TOOLTIP_DELAY_MS);
     },
-    [indexes, series, xAxis.label, yAxis.label, xMap, yMap, onHoverRef],
+    [indexes, series, xAxis, yAxis, xMap, yMap, onHoverRef],
   );
   const hoverRef = useLatest(hover);
 

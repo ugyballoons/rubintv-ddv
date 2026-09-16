@@ -375,7 +375,11 @@ reads `content.error`.
    the command carried one. The client still routes errors globally until a
    worker with this change is deployed.
 2. Dropped, see above. Errors stay in `content.error` for file commands.
-3. Add `date`/`datetime` to the client type map (client-side only).
+3. Add `date`/`datetime` to the client type map (client-side only). Done.
+   The map (`src/model/schema.ts`) now also keeps `int`/`long`/`short` as an
+   `integer` kind, carried through to the chart axes so ids and counts get
+   whole-number ticks, bins and readouts, and readouts and tooltips show
+   timestamps as dates rather than epoch milliseconds.
 4. Fix the `ParentQuery` round trip (`toJson` writes `operator`, `fromJson`
    reads `content.operator`), so compound global queries reload. Client-side.
 5. Normalise the `left_operator` flip table keys in `query.py` to the operator

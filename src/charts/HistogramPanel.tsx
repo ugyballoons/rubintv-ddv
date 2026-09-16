@@ -13,7 +13,7 @@ import {
 import { EChart } from './EChart';
 import type { EChartsInstance } from './echarts';
 import { ChartTooltip, type TooltipData } from './ChartTooltip';
-import { fmt } from './format';
+import { formatBinRange } from './format';
 import { useLatest } from './useLatest';
 
 export interface HistogramSeries {
@@ -92,7 +92,7 @@ export function HistogramPanel({
   const binLabel = (b: number) =>
     mainAxis.kind === 'category' && mainAxis.categories
       ? (mainAxis.categories[b] ?? String(b))
-      : `${fmt(bins.edges[b])} – ${fmt(bins.edges[b + 1])}`;
+      : formatBinRange(bins.edges[b], bins.edges[b + 1], mainAxis);
 
   // Resolve the selected bins to DataIds whenever the bin selection changes.
   const lastEmitted = useRef<BinSelectionState>(emptyBinSelection);

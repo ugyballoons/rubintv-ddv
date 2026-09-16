@@ -21,7 +21,8 @@ import { BoxPanel } from '../charts/BoxPanel';
 import { SeriesEditor } from './SeriesEditor';
 import { AxisEditor } from './AxisEditor';
 import { Icon } from '../app/Icon';
-import { fmt } from '../charts/format';
+import { formatValue } from '../charts/format';
+import { isNumeric } from '../model/schema';
 import { describeNights } from '../model/nights';
 import { axisFor, toPlottable, type PlottableColumn } from '../model/columnData';
 import type { AxisConfig } from '../model/workspace';
@@ -34,13 +35,13 @@ export function ChartWindow({ window: w, client }: { window: WindowMeta; client:
   const [editing, setEditing] = useState<{ series: SeriesConfig; isNew: boolean } | null>(null);
   const [axesOpen, setAxesOpen] = useState(false);
   const [resetToken, setResetToken] = useState(0);
-  const [hover, setHover] = useState<{ x: number; y: number } | null>(null);
+  const [hover, setHover] = useState<{ x: string; y: string } | null>(null);
 
   const newSeries = (): SeriesConfig | null => {
     if (!instrument?.database) return null;
     const numeric = instrument.tables
       .filter((t) => !/^ccd/.test(t.name))
-      .flatMap((t) => t.columns.filter((c) => c.kind === 'number'));
+      .flatMap((t) => t.columns.filter((c) => isNumeric(c.kind)));
     const fields: Partial<Record<AxisLocation, ColumnRef>> = {};
     chart.axes.forEach((a, i) => {
       const c = numeric[Math.min(i, numeric.length - 1)];
@@ -260,7 +261,7 @@ function WindowStatus({
   axes,
 }: {
   seriesIds: string[];
-  hover: { x: number; y: number } | null;
+  hover: { x: string; y: string } | null;
   axes: readonly AxisConfig[];
 }) {
   const entries = useSeriesData((s) => s.entries);
@@ -283,8 +284,8 @@ function WindowStatus({
       <span className={hasError ? 'error' : undefined}>{parts.join(' · ')}</span>
       {hover && (
         <span className="coords">
-          {axes[0]?.label ?? 'x'} {fmt(hover.x)}
-          {axes[1] && ` · ${axes[1].label} ${fmt(hover.y)}`}
+          {axes[0]?.label ?? 'x'} {hover.x}
+          {axes[1] && ` · ${axes[1].label} ${hover.y}`}
         </span>
       )}
     </div>
@@ -334,7 +335,8 @@ function SeriesChart({
 }: {
   window: WindowMeta;
   resetToken: number;
-  onHover(c: { x: number; y: number } | null): void;
+  /** Hover position already formatted in each axis' units, in `chart.axes` order. */
+  onHover(c: { x: string; y: string } | null): void;
 }) {
   const chart = w.chart!;
   const ids = chart.series.map((s) => s.id);
@@ -371,7 +373,6 @@ function SeriesChart({
       };
     return out;
   }, [chart.axes]);
-  const axisSpec = (location: AxisLocation): AxisSpec => axisSpecs[location];
 
   // One dependency that changes only when a series' ready data changes.
   const readyData = useStableArray(
@@ -430,6 +431,14 @@ function SeriesChart({
     [axisSpecs, ay, built.yCol, chart.axes],
   );
 
+  // Panels report hover in data units; format them as the column kind reads (dates, whole numbers).
+  const specFor = (i: number): AxisSpec => {
+    const loc = chart.axes[i]?.location ?? ax;
+    return loc === ax ? xAxisSpec : loc === ay ? yAxisSpec : axisSpecs[loc];
+  };
+  const reportHover = (c: { x: number; y: number } | null) =>
+    onHover(c && { x: formatValue(c.x, specFor(0)), y: formatValue(c.y, specFor(1)) });
+
   const allEmpty =
     ids.length > 0 &&
     ids.every((id) => entries[id]?.status === 'ready' && entries[id].data?.rowCount === 0);
@@ -471,10 +480,10 @@ function SeriesChart({
         <ScatterPanel
           registryId={w.id}
           resetToken={resetToken}
-          onHover={onHover}
+          onHover={reportHover}
           series={specs}
-          xAxis={axisSpec('bottom')}
-          yAxis={axisSpec('left')}
+          xAxis={xAxisSpec}
+          yAxis={yAxisSpec}
           selected={selected}
           onSelect={onSelect}
         />
@@ -485,11 +494,11 @@ function SeriesChart({
           registryId={w.id}
           resetToken={resetToken}
           series={specs}
-          radialAxis={axisSpec('radial')}
-          angularAxis={axisSpec('angular')}
+          radialAxis={yAxisSpec}
+          angularAxis={xAxisSpec}
           selected={selected}
           onSelect={onSelect}
-          onHover={onHover}
+          onHover={reportHover}
         />
       );
     case 'histogram':

@@ -16,6 +16,52 @@ test('hovering a point shows a tooltip and the coordinate readout', async ({ app
   await expect(page.getByRole('tooltip')).toHaveCount(0);
 });
 
+test('integer and timestamp columns read as whole numbers and dates', async ({ app, page }) => {
+  const ints = await app.addChart('Scatter plot');
+  await app.addSeries(ints, { bottom: 'exposure_id', left: 'ra' });
+  await app.waitLoaded(ints);
+  let c = (await ints.locator('canvas').first().boundingBox())!;
+  await page.mouse.move(c.x + c.width * 0.5, c.y + c.height * 0.5);
+  await page.mouse.move(c.x + c.width * 0.5 + 1, c.y + c.height * 0.5 + 1);
+  await expect(ints.locator('.window-status .coords')).toContainText(
+    /exposure\.exposure_id -?\d+ · exposure\.ra/,
+  );
+  await expect(page.getByRole('tooltip')).toContainText(
+    /exposure\.exposure_id\s*\d+\s*exposure\.ra/,
+    {
+      timeout: 5_000,
+    },
+  );
+  await page.mouse.move(10, 400);
+
+  const times = await app.addChart('Scatter plot');
+  await app.moveWindow(times, 700, -20);
+  await app.addSeries(times, { bottom: 'obs_start', left: 'dec' });
+  await app.waitLoaded(times);
+  c = (await times.locator('canvas').first().boundingBox())!;
+  await page.mouse.move(c.x + c.width * 0.5, c.y + c.height * 0.5);
+  await page.mouse.move(c.x + c.width * 0.5 + 1, c.y + c.height * 0.5 + 1);
+  const date = /\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}/;
+  await expect(times.locator('.window-status .coords')).toContainText(date);
+  await expect(page.getByRole('tooltip')).toContainText(date, { timeout: 5_000 });
+});
+
+test('a histogram of an integer column has whole-number bins', async ({ app, page }) => {
+  const win = await app.addChart('Histogram');
+  await app.addSeries(win, { bottom: 'exposure_id' });
+  await app.waitLoaded(win);
+  const c = (await win.locator('canvas').first().boundingBox())!;
+  const x = c.x + 60 + (c.width - 80) * 0.12;
+  const y = c.y + c.height - 60;
+  await page.mouse.move(x, y);
+  await page.mouse.move(x + 1, y);
+  // 100,000 ids in 20 bins: integer-wide bins of 5,000 whole values each.
+  await expect(page.getByRole('tooltip')).toContainText(/bin\s*\d+ – \d+\s*count\s*5,000/, {
+    timeout: 5_000,
+  });
+  await expect(page.getByRole('tooltip')).not.toContainText(/\d\.\d/);
+});
+
 test('reset axes restores the view after a zoom and Refresh re-fetches', async ({ app, page }) => {
   const win = await app.addChart('Scatter plot');
   await app.addSeries(win, { bottom: 'ra', left: 'dec' });

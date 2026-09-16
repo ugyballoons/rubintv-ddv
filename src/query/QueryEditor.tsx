@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import type { EqualityQueryJson, ParentQueryJson, QueryJson } from '../protocol/types';
-import type { Instrument } from '../model/schema';
+import { isNumeric, type Instrument } from '../model/schema';
 import type { ColumnRef } from '../model/workspace';
 import {
   LEFT_OPERATORS,
@@ -53,7 +53,7 @@ export function QueryEditor({ instrument, initial, title, onCancel, onAccept }: 
       ...roots,
       condition(
         ref,
-        kind === 'number'
+        isNumeric(kind)
           ? { rightOperator: 'lt', rightValue: 0 }
           : { rightOperator: 'eq', rightValue: '' },
       ),
@@ -119,7 +119,7 @@ export function QueryEditor({ instrument, initial, title, onCancel, onAccept }: 
       ) : (
         <ConditionRow
           node={n}
-          numeric={kindOf(n.field) === 'number'}
+          numeric={isNumeric(kindOf(n.field))}
           onChange={(patch) =>
             setRoots(updateNode(roots, n.id, (x) => ({ ...(x as EqualityQueryJson), ...patch })))
           }
