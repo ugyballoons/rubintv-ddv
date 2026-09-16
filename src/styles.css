@@ -60,6 +60,8 @@ button {
 }
 .workspace {
   position: relative;
+  /* Window z-indexes grow with every focus; contain them so they never climb above the toolbar and its menus. */
+  isolation: isolate;
   flex: 1;
   overflow: hidden;
   background-color: var(--bg);
