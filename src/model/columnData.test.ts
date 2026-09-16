@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { axisFor, parseTimestampMs, toPlottable } from './columnData';
+import { axisFor, isIdColumn, parseTimestampMs, toPlottable } from './columnData';
 
 describe('column data', () => {
   it('parses consdb timestamps as UTC milliseconds', () => {
@@ -35,5 +35,26 @@ describe('column data', () => {
       kind: 'datetime',
       mjdLabels: true,
     });
+  });
+  it('flags id columns so their axes label ticks as plain digits', () => {
+    expect(isIdColumn('exposure_id')).toBe(true);
+    expect(isIdColumn('id')).toBe(true);
+    expect(isIdColumn('visitId')).toBe(true);
+    expect(isIdColumn('centroid')).toBe(false);
+    expect(isIdColumn('width')).toBe(false);
+    const base = {
+      location: 'bottom',
+      label: 'exposure.exposure_id',
+      mapping: 'linear',
+      inverted: false,
+      kind: 'number',
+    } as const;
+    const ids = toPlottable(new Float64Array([2025090800004]), 'integer', 'exposure_id');
+    expect(axisFor(base, ids, false)).toMatchObject({ integer: true, plainDigits: true });
+    const seq = toPlottable(new Float64Array([4]), 'integer', 'seq_num');
+    expect(axisFor(base, seq, false).plainDigits).toBeUndefined();
+    expect(
+      toPlottable(new Float64Array([1.5]), 'number', 'exposure_id').identifier,
+    ).toBeUndefined();
   });
 });

@@ -398,7 +398,7 @@ function SeriesChart({
       const col = (loc: AxisLocation): PlottableColumn | undefined => {
         const ref = s.fields[loc];
         const raw = ref ? data.columns[columnRefId(ref)] : undefined;
-        return raw && ref ? toPlottable(raw, columnKind(ref)) : undefined;
+        return raw && ref ? toPlottable(raw, columnKind(ref), ref.name) : undefined;
       };
       const x = col(ax);
       const y = col(ay);

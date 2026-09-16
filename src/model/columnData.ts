@@ -14,18 +14,28 @@ export interface PlottableColumn {
   readonly kind: 'integer' | 'number' | 'datetime' | 'category';
   /** Category labels when kind is 'category'; values are indices into it. */
   readonly categories?: readonly string[];
+  /** The column holds identifiers (its name ends in "id"), which read as plain digits, never 2,025,090,800,004. */
+  readonly identifier?: boolean;
 }
+
+/** Whether a column name denotes an identifier: "id", "exposure_id", "visitId", "ccdvisit_id". */
+export const isIdColumn = (name: string): boolean => /(^|_)id$|[a-z]Id$/.test(name);
 
 /**
  * Turn a loaded column into numbers a chart can plot: datetimes as ms, strings
  * as category indices. Integers are already exact in the Float64Array; the
  * kind is kept so axes and readouts can show them as whole numbers.
  */
-export function toPlottable(column: Float64Array | string[], kind: ColumnKind): PlottableColumn {
+export function toPlottable(
+  column: Float64Array | string[],
+  kind: ColumnKind,
+  name?: string,
+): PlottableColumn {
   if (column instanceof Float64Array)
     return {
       values: column,
       kind: kind === 'datetime' ? 'datetime' : kind === 'integer' ? 'integer' : 'number',
+      ...(kind === 'integer' && name !== undefined && isIdColumn(name) && { identifier: true }),
     };
   if (kind === 'datetime')
     return { values: Float64Array.from(column, parseTimestampMs), kind: 'datetime' };
@@ -44,7 +54,7 @@ export function axisFor(
   return {
     ...base,
     kind: col.kind === 'integer' ? 'number' : col.kind,
-    ...(col.kind === 'integer' && { integer: true }),
+    ...(col.kind === 'integer' && { integer: true, ...(col.identifier && { plainDigits: true }) }),
     ...(col.kind === 'category' && { categories: col.categories, mapping: 'linear' as const }),
     ...(col.kind === 'datetime' && { mapping: 'linear' as const, mjdLabels }),
   };
