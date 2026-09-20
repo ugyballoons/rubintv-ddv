@@ -26,7 +26,7 @@ import { isNumeric } from '../model/schema';
 import { describeNights } from '../model/nights';
 import { axisFor, toPlottable, type PlottableColumn } from '../model/columnData';
 import type { AxisConfig } from '../model/workspace';
-import { planYAxes } from '../model/yAxes';
+import { planYAxes, sharedAxisLocation, sharedAxisMismatches } from '../model/axisPlan';
 
 /** Chart types whose series may split across two y axes when they plot different quantities. */
 const TWIN_AXIS_TYPES: readonly string[] = ['cartesianScatter', 'box'];
@@ -51,6 +51,9 @@ export function ChartWindow({ window: w, client }: { window: WindowMeta; client:
       const c = numeric[Math.min(i, numeric.length - 1)];
       if (c) fields[a.location] = { name: c.name, schema: c.table, database: instrument.database! };
     });
+    // The shared (x) axis starts as the first series' column: series are compared along it.
+    const shared = sharedLocation && chart.series.find((s) => s.fields[sharedLocation]);
+    if (shared && sharedLocation) fields[sharedLocation] = shared.fields[sharedLocation];
     // Flutter series ids are "<windowId>-<n>"; keep that so saved files interoperate.
     const taken = new Set(chart.series.map((s) => s.id));
     let n = chart.series.length + 1;
@@ -66,6 +69,16 @@ export function ChartWindow({ window: w, client }: { window: WindowMeta; client:
 
   const yLocation = TWIN_AXIS_TYPES.includes(w.type) ? chart.axes[1]?.location : undefined;
   const plan = planYAxes(chart.series, yLocation, instrument);
+  const sharedLocation = sharedAxisLocation(w.type, chart.axes);
+  const warnings = [
+    ...(plan.overflow.length > 0
+      ? [`${plan.overflow.join(', ')}: no third y axis, drawn on the ${yLocation} scale`]
+      : []),
+    ...sharedAxisMismatches(chart.series, sharedLocation, instrument).map(
+      (m) =>
+        `${m.series.name}: ${sharedLocation} column is a different quantity from ${m.reference.name}'s, drawn on its scale`,
+    ),
+  ];
 
   const commitSeries = (s: SeriesConfig) => {
     updateChart(w.id, (c) => {
@@ -227,11 +240,7 @@ export function ChartWindow({ window: w, client }: { window: WindowMeta; client:
           seriesIds={chart.series.map((s) => s.id)}
           hover={hover}
           axes={chart.axes}
-          warning={
-            plan.overflow.length > 0
-              ? `${plan.overflow.join(', ')}: no third y axis, drawn on the ${yLocation} scale`
-              : undefined
-          }
+          warnings={warnings}
         />
       )}
       {axesOpen && (
@@ -250,6 +259,8 @@ export function ChartWindow({ window: w, client }: { window: WindowMeta; client:
           instrument={instrument}
           axes={chart.axes}
           series={editing.series}
+          others={chart.series.filter((s) => s.id !== editing.series.id)}
+          sharedLocation={sharedLocation}
           isNew={editing.isNew}
           onCancel={() => setEditing(null)}
           onAccept={commitSeries}
@@ -278,12 +289,12 @@ function WindowStatus({
   seriesIds,
   hover,
   axes,
-  warning,
+  warnings,
 }: {
   seriesIds: string[];
   hover: { x: string; y: string } | null;
   axes: readonly AxisConfig[];
-  warning?: string;
+  warnings: readonly string[];
 }) {
   const entries = useSeriesData((s) => s.entries);
   const parts = seriesIds.map((id) => {
@@ -303,13 +314,13 @@ function WindowStatus({
         <span className="spinner" aria-label="loading" />
       )}
       <span className={hasError ? 'error' : undefined}>{parts.join(' · ')}</span>
-      {warning && (
+      {warnings.length > 0 && (
         <span
           className="warning"
-          title="A chart has at most two y scales"
+          title="Series share the x axis and at most two y scales"
           data-testid="axis-warning"
         >
-          {warning}
+          {warnings.join(' · ')}
         </span>
       )}
       {hover && (

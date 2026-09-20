@@ -1,6 +1,12 @@
 import { assignYAxes, type AxisLocation, type YAxisIndex } from 'rubin-charts';
 import type { Instrument } from './schema';
-import { columnRefId, type ColumnRef, type SeriesConfig } from './workspace';
+import {
+  columnRefId,
+  type AxisConfig,
+  type ColumnRef,
+  type SeriesConfig,
+  type WindowType,
+} from './workspace';
 
 /**
  * What "the same scale" means for a column: its unit when the schema gives
@@ -55,4 +61,43 @@ export function planYAxes(
     secondaryLabel,
     overflow: assignment.overflow.map((i) => withField[i].name),
   };
+}
+
+/**
+ * The axis every series of a chart must agree on: the x-like one. Two y
+ * quantities can have two scales, but the x axis is the frame that makes the
+ * series comparable at all, so a different x quantity only ever overlays.
+ */
+export function sharedAxisLocation(
+  type: WindowType,
+  axes: readonly AxisConfig[],
+): AxisLocation | undefined {
+  return type === 'polarScatter' ? 'angular' : axes[0]?.location;
+}
+
+export interface AxisMismatch {
+  /** The series with the odd column. */
+  readonly series: SeriesConfig;
+  /** The series whose column sets the axis' quantity. */
+  readonly reference: SeriesConfig;
+}
+
+/**
+ * Series whose column on the shared axis is a different quantity from the
+ * first series', so they are drawn on a scale that is not theirs.
+ */
+export function sharedAxisMismatches(
+  series: readonly SeriesConfig[],
+  location: AxisLocation | undefined,
+  instrument: Instrument | null,
+): AxisMismatch[] {
+  if (!location) return [];
+  const withField = series.filter((s) => s.fields[location]);
+  const reference = withField[0];
+  if (!reference) return [];
+  const key = quantityKey(reference.fields[location]!, instrument);
+  return withField
+    .slice(1)
+    .filter((s) => quantityKey(s.fields[location]!, instrument) !== key)
+    .map((s) => ({ series: s, reference }));
 }

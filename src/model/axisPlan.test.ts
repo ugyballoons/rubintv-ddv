@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { planYAxes, quantityKey } from './yAxes';
+import { planYAxes, quantityKey, sharedAxisLocation, sharedAxisMismatches } from './axisPlan';
 import type { Instrument } from './schema';
 import type { SeriesConfig } from './workspace';
 
@@ -95,5 +95,45 @@ describe('planYAxes', () => {
     expect(
       planYAxes([series('1', 'sky_bg_median')], undefined, instrument).secondaryLabel,
     ).toBeNull();
+  });
+});
+
+describe('sharedAxisMismatches', () => {
+  it('reports series whose x column is a different quantity from the first series', () => {
+    const mjd: SeriesConfig = {
+      ...series('2', 'dec'),
+      fields: { bottom: ref('wind_speed'), left: ref('dec') },
+    };
+    const mism = sharedAxisMismatches(
+      [series('1', 'dec'), mjd, series('3', 'dec')],
+      'bottom',
+      instrument,
+    );
+    expect(mism.map((m) => [m.series.id, m.reference.id])).toEqual([['2', '1']]);
+  });
+
+  it('accepts columns of the same unit and ignores charts without the axis', () => {
+    const other: SeriesConfig = {
+      ...series('2', 'dec'),
+      fields: { bottom: ref('zero_point_min'), left: ref('dec') },
+    };
+    const first: SeriesConfig = {
+      ...series('1', 'dec'),
+      fields: { bottom: ref('zero_point_median'), left: ref('dec') },
+    };
+    expect(sharedAxisMismatches([first, other], 'bottom', instrument)).toEqual([]);
+    expect(sharedAxisMismatches([first, other], undefined, instrument)).toEqual([]);
+  });
+
+  it('names the angular axis for polar charts and the first axis otherwise', () => {
+    const axes = [
+      { location: 'radial' as const, label: 'r', mapping: 'linear' as const, inverted: false },
+      { location: 'angular' as const, label: 't', mapping: 'linear' as const, inverted: false },
+    ];
+    expect(sharedAxisLocation('polarScatter', axes)).toBe('angular');
+    expect(sharedAxisLocation('cartesianScatter', [{ ...axes[0], location: 'bottom' }])).toBe(
+      'bottom',
+    );
+    expect(sharedAxisLocation('histogram', [])).toBeUndefined();
   });
 });

@@ -5,11 +5,16 @@ import type { Instrument } from '../model/schema';
 import type { AxisConfig, ColumnRef, SeriesConfig } from '../model/workspace';
 import { QueryEditor } from '../query/QueryEditor';
 import { describe as describeQuery } from '../model/query';
+import { quantityKey } from '../model/axisPlan';
 
 interface Props {
   instrument: Instrument;
   axes: readonly AxisConfig[];
   series: SeriesConfig;
+  /** The chart's other series; the first with a column on `sharedLocation` sets that axis' quantity. */
+  others?: readonly SeriesConfig[];
+  /** The axis every series shares (x); a different quantity there is warned about, not given an axis. */
+  sharedLocation?: AxisLocation;
   isNew: boolean;
   /** Histograms and box charts only use the colour; points also have a size. */
   hasMarkerSize?: boolean;
@@ -26,6 +31,8 @@ export function SeriesEditor({
   instrument,
   axes,
   series,
+  others = [],
+  sharedLocation,
   isNew,
   onCancel,
   onAccept,
@@ -41,6 +48,15 @@ export function SeriesEditor({
   const setField = (location: AxisLocation, ref: ColumnRef) =>
     setDraft((d) => ({ ...d, fields: { ...d.fields, [location]: ref } }));
   const complete = axes.every((a) => draft.fields[a.location]) && draft.name.trim() !== '';
+  // Live check of the shared axis: same unit (or column) as the reference series, or a warning.
+  const reference = sharedLocation ? others.find((s) => s.fields[sharedLocation]) : undefined;
+  const mismatch = (location: AxisLocation): string | null => {
+    const mine = draft.fields[location];
+    const theirs = sharedLocation === location ? reference?.fields[location] : undefined;
+    if (!mine || !theirs || quantityKey(mine, instrument) === quantityKey(theirs, instrument))
+      return null;
+    return `Different quantity from ${reference!.name} (${theirs.name}). Series share the ${location} axis, so this one is drawn on that scale.`;
+  };
 
   return createPortal(
     <div className="dialog-backdrop" onMouseDown={onCancel}>
@@ -101,6 +117,11 @@ export function SeriesEditor({
                   </option>
                 ))}
               </select>
+              {mismatch(a.location) && (
+                <span className="warning" role="note" data-testid="shared-axis-warning">
+                  {mismatch(a.location)}
+                </span>
+              )}
             </div>
           );
         })}

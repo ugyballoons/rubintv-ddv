@@ -70,3 +70,36 @@ test('box charts split cross axes the same way', async ({ app }) => {
   expect(opt.yAxes[1].position).toBe('right');
   expect(opt.series.map((s) => s.yAxisIndex)).toEqual([0, 1]);
 });
+
+test('the x axis is shared: new series default to it and a different quantity is warned about', async ({
+  app,
+  page,
+}) => {
+  const win = await app.addChart('Scatter plot');
+  await app.addSeries(win, { bottom: 'obs_start_mjd', left: 'dec' }, { name: 'first' });
+  await app.waitLoaded(win, 1);
+
+  // The new-series editor starts on the first series' x column.
+  await win.getByRole('button', { name: '+ series' }).click();
+  const dlg = page.getByRole('dialog', { name: 'New series' });
+  await expect(dlg.locator('select[aria-label="bottom column"]')).toHaveValue('obs_start_mjd');
+  await expect(dlg.getByTestId('shared-axis-warning')).toHaveCount(0);
+  // Picking a different quantity warns live; a compatible one does not.
+  await dlg.locator('select[aria-label="bottom column"]').selectOption('ra');
+  await expect(dlg.getByTestId('shared-axis-warning')).toContainText(
+    'Different quantity from first (obs_start_mjd)',
+  );
+  if (process.env.E2E_SHOT_EDITOR) await page.screenshot({ path: process.env.E2E_SHOT_EDITOR });
+  await dlg.locator('input[aria-label="series name"]').fill('odd');
+  await dlg.locator('select[aria-label="left column"]').selectOption('dec');
+  await dlg.getByRole('button', { name: 'Accept' }).click();
+  await app.waitLoaded(win, 2);
+
+  // The chart still has one x axis, and the status line says who is on the wrong scale.
+  const { id } = await windowId(app, win);
+  const opt = await optionOf(app, id);
+  expect(opt.yAxes).toHaveLength(1);
+  await expect(win.getByTestId('axis-warning')).toContainText(
+    "odd: bottom column is a different quantity from first's",
+  );
+});
