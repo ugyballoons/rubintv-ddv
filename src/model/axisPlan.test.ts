@@ -183,6 +183,18 @@ describe('axis labels follow the series', () => {
     expect(follow(two, [two[1]], typed)[1]).toBe('Sky (ADU)');
   });
 
+  it('treats a bare column name as automatic, as Flutter-saved workspaces have', () => {
+    const flutter = [
+      { ...axes[0], label: 'seq_num' },
+      { ...axes[1], label: 'sky_bg_median' },
+    ];
+    const prev = [series('1', 'sky_bg_median')];
+    expect(follow(prev, [series('1', 'humidity')], flutter)).toEqual([
+      'seq_num',
+      'visit1_quicklook.humidity',
+    ]);
+  });
+
   it('treats a label equal to a previous column id as automatic, as older files have', () => {
     const old = [
       { ...axes[0], label: 'visit1_quicklook.seq_num' },

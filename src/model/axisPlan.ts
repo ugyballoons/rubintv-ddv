@@ -72,10 +72,15 @@ export function followAxisLabels(
   return axes.map((a) => {
     const wanted = after[a.location];
     if (wanted === undefined || wanted === a.label) return a;
+    // Automatic titles from before this rule: a previous column's id, or its
+    // bare name, which is what the Flutter app wrote into saved workspaces.
     const automatic =
       isPlaceholderLabel(a.label) ||
       a.label === before[a.location] ||
-      prev.some((s) => s.fields[a.location] && a.label === columnRefId(s.fields[a.location]!));
+      prev.some((s) => {
+        const f = s.fields[a.location];
+        return f && (a.label === columnRefId(f) || a.label === f.name);
+      });
     return automatic ? { ...a, label: wanted } : a;
   });
 }
