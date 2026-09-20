@@ -189,8 +189,9 @@ describe('axis labels follow the series', () => {
       { ...axes[1], label: 'sky_bg_median' },
     ];
     const prev = [series('1', 'sky_bg_median')];
+    // Both titles follow: the x one is renamed into this app's column-id form.
     expect(follow(prev, [series('1', 'humidity')], flutter)).toEqual([
-      'seq_num',
+      'visit1_quicklook.seq_num',
       'visit1_quicklook.humidity',
     ]);
   });
