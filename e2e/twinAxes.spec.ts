@@ -103,3 +103,53 @@ test('the x axis is shared: new series default to it and a different quantity is
     "odd: bottom column is a different quantity from first's",
   );
 });
+
+test('axis titles follow the reference series, and removing the right-axis series does not crash', async ({
+  app,
+  page,
+}) => {
+  const errors: string[] = [];
+  page.on('pageerror', (e) => errors.push(e.message));
+  const win = await app.addChart('Scatter plot');
+  await app.addSeries(win, { bottom: 'ra', left: 'dec' }, { name: 'dec' });
+  await app.waitLoaded(win, 1);
+  await app.addSeries(win, { bottom: 'ra', left: 'obs_start_mjd' }, { name: 'mjd' });
+  await app.waitLoaded(win, 2);
+  const { id } = await windowId(app, win);
+
+  // Editing the first series' y column renames the left axis; the right one keeps its own title.
+  await win.locator('.legend button', { hasText: 'dec' }).click();
+  const dlg = page.getByRole('dialog', { name: 'Edit dec' });
+  await dlg.locator('select[aria-label="left column"]').selectOption('exposure_id');
+  await dlg.getByRole('button', { name: 'Accept' }).click();
+  await app.waitLoaded(win, 2);
+  let opt = await optionOf(app, id);
+  expect(opt.yAxes.map((a) => a.name)).toEqual(['exposure.exposure_id', 'exposure.obs_start_mjd']);
+
+  // Select something so the overlay exists on both axes, then delete the right-axis series.
+  await app.dragOn(win, 0.2, 0.2, 0.9, 0.9);
+  expect((await app.state()).selected).toBeGreaterThan(0);
+  await win.locator('.legend button', { hasText: 'mjd' }).click();
+  await page
+    .getByRole('dialog', { name: 'Edit mjd' })
+    .getByRole('button', { name: 'Delete series' })
+    .click();
+  await expect(win.locator('.legend button')).toHaveCount(1);
+  opt = await optionOf(app, id);
+  expect(opt.yAxes).toHaveLength(1);
+  expect(opt.series.filter((s) => s.id?.startsWith('__selected__'))).toHaveLength(1);
+  expect(errors).toEqual([]);
+
+  // Deleting the reference series hands the left title to the remaining one.
+  await app.addSeries(win, { bottom: 'ra', left: 'obs_start_mjd' }, { name: 'mjd2' });
+  await app.waitLoaded(win, 2);
+  await win.locator('.legend button', { hasText: 'dec' }).click();
+  await page
+    .getByRole('dialog', { name: 'Edit dec' })
+    .getByRole('button', { name: 'Delete series' })
+    .click();
+  await expect(win.locator('.legend button')).toHaveCount(1);
+  opt = await optionOf(app, id);
+  expect(opt.yAxes.map((a) => a.name)).toEqual(['exposure.obs_start_mjd']);
+  expect(errors).toEqual([]);
+});

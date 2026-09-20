@@ -1,7 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { planYAxes, quantityKey, sharedAxisLocation, sharedAxisMismatches } from './axisPlan';
+import {
+  followAxisLabels,
+  planYAxes,
+  quantityKey,
+  sharedAxisLocation,
+  sharedAxisMismatches,
+} from './axisPlan';
 import type { Instrument } from './schema';
-import type { SeriesConfig } from './workspace';
+import type { AxisConfig, SeriesConfig } from './workspace';
 
 const instrument: Instrument = {
   name: 'LSSTCam',
@@ -135,5 +141,54 @@ describe('sharedAxisMismatches', () => {
       'bottom',
     );
     expect(sharedAxisLocation('histogram', [])).toBeUndefined();
+  });
+});
+
+describe('axis labels follow the series', () => {
+  const axes: readonly AxisConfig[] = [
+    { location: 'bottom', label: '<x>', mapping: 'linear', inverted: false },
+    { location: 'left', label: '<y>', mapping: 'linear', inverted: true },
+  ];
+  const follow = (prev: SeriesConfig[], next: SeriesConfig[], a: readonly AxisConfig[] = axes) =>
+    followAxisLabels(prev, next, a, 'cartesianScatter', instrument).map((x) => x.label);
+
+  it('names axes after the first series and keeps the primary title when a second quantity joins', () => {
+    const one = [series('1', 'sky_bg_median')];
+    const two = [...one, series('2', 'wind_speed')];
+    const named = followAxisLabels([], one, axes, 'cartesianScatter', instrument);
+    expect(named.map((a) => a.label)).toEqual([
+      'visit1_quicklook.seq_num',
+      'visit1_quicklook.sky_bg_median',
+    ]);
+    expect(follow(one, two, named)).toEqual([
+      'visit1_quicklook.seq_num',
+      'visit1_quicklook.sky_bg_median',
+    ]);
+  });
+
+  it('follows the reference series when its column changes, and names a shared unit by the unit', () => {
+    const before = [series('1', 'zero_point_median'), series('2', 'wind_speed')];
+    const named = followAxisLabels([], before, axes, 'cartesianScatter', instrument);
+    const after = [series('1', 'zero_point_median'), series('2', 'zero_point_min')];
+    expect(follow(before, after, named)[1]).toBe('mag');
+    const edited = [series('1', 'humidity'), series('2', 'wind_speed')];
+    expect(follow(before, edited, named)[1]).toBe('visit1_quicklook.humidity');
+  });
+
+  it('relabels when the reference series is deleted, but never a title the user typed', () => {
+    const two = [series('1', 'sky_bg_median'), series('2', 'wind_speed')];
+    const named = followAxisLabels([], two, axes, 'cartesianScatter', instrument);
+    expect(follow(two, [two[1]], named)[1]).toBe('visit1_quicklook.wind_speed');
+    const typed = named.map((a) => (a.location === 'left' ? { ...a, label: 'Sky (ADU)' } : a));
+    expect(follow(two, [two[1]], typed)[1]).toBe('Sky (ADU)');
+  });
+
+  it('treats a label equal to a previous column id as automatic, as older files have', () => {
+    const old = [
+      { ...axes[0], label: 'visit1_quicklook.seq_num' },
+      { ...axes[1], label: 'visit1_quicklook.sky_bg_median' },
+    ];
+    const prev = [series('1', 'sky_bg_median')];
+    expect(follow(prev, [series('1', 'humidity')], old)[1]).toBe('visit1_quicklook.humidity');
   });
 });

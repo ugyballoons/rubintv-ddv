@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useLayoutEffect, useRef } from 'react';
 import type { EChartsCoreOption } from 'echarts/core';
 import { fitVerticalAxisTitles } from 'rubin-charts';
 import { echarts, type EChartsInstance } from './echarts';
@@ -46,6 +46,13 @@ export function EChart({ option, patch, resetToken = 0, onReady, registryId, sty
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Tracked in a layout effect so the full re-apply below already sees the
+  // patch that belongs to this option: option and patch change together when
+  // a series goes, and the previous patch may name an axis that no longer exists.
+  useLayoutEffect(() => {
+    lastPatch.current = patch;
+  }, [patch]);
+
   useEffect(() => {
     const c = chart.current;
     if (!c) return;
@@ -57,7 +64,6 @@ export function EChart({ option, patch, resetToken = 0, onReady, registryId, sty
   }, [option, resetToken]);
 
   useEffect(() => {
-    lastPatch.current = patch;
     if (patch) chart.current?.setOption(patch, { notMerge: false, lazyUpdate: false });
   }, [patch]);
 

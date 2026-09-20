@@ -4,7 +4,6 @@ import type { DdvClient } from '../protocol/client';
 import {
   SERIES_COLORS,
   columnRefId,
-  isPlaceholderLabel,
   type ColumnRef,
   type SeriesConfig,
   type WindowMeta,
@@ -26,10 +25,13 @@ import { isNumeric } from '../model/schema';
 import { describeNights } from '../model/nights';
 import { axisFor, toPlottable, type PlottableColumn } from '../model/columnData';
 import type { AxisConfig } from '../model/workspace';
-import { planYAxes, sharedAxisLocation, sharedAxisMismatches } from '../model/axisPlan';
-
-/** Chart types whose series may split across two y axes when they plot different quantities. */
-const TWIN_AXIS_TYPES: readonly string[] = ['cartesianScatter', 'box'];
+import {
+  followAxisLabels,
+  planYAxes,
+  sharedAxisLocation,
+  sharedAxisMismatches,
+  twinAxisLocation,
+} from '../model/axisPlan';
 
 export function ChartWindow({ window: w, client }: { window: WindowMeta; client: DdvClient }) {
   const chart = w.chart!;
@@ -67,7 +69,7 @@ export function ChartWindow({ window: w, client }: { window: WindowMeta; client:
     };
   };
 
-  const yLocation = TWIN_AXIS_TYPES.includes(w.type) ? chart.axes[1]?.location : undefined;
+  const yLocation = twinAxisLocation(w.type, chart.axes);
   const plan = planYAxes(chart.series, yLocation, instrument);
   const sharedLocation = sharedAxisLocation(w.type, chart.axes);
   const warnings = [
@@ -85,21 +87,8 @@ export function ChartWindow({ window: w, client }: { window: WindowMeta; client:
       const previous = c.series.find((x) => x.id === s.id);
       const exists = !!previous;
       const series = exists ? c.series.map((x) => (x.id === s.id ? s : x)) : [...c.series, s];
-      // A series bound for the secondary y axis names that axis, not the configured one.
-      const onSecondary = planYAxes(series, yLocation, instrument).index.get(s.id) === 1;
-      return {
-        ...c,
-        series,
-        // Axis labels follow the field while they are still automatic: the
-        // placeholder, or the previous field's name. A label the user typed stays.
-        axes: c.axes.map((a) => {
-          const next = s.fields[a.location];
-          if (!next || (onSecondary && a.location === yLocation)) return a;
-          const prev = previous?.fields[a.location];
-          const automatic = isPlaceholderLabel(a.label) || (prev && a.label === columnRefId(prev));
-          return automatic ? { ...a, label: columnRefId(next) } : a;
-        }),
-      };
+      // Automatic axis titles follow the series; titles the user typed stay.
+      return { ...c, series, axes: followAxisLabels(c.series, series, c.axes, w.type, instrument) };
     });
     setEditing(null);
   };
@@ -107,7 +96,10 @@ export function ChartWindow({ window: w, client }: { window: WindowMeta; client:
   const deleteSeries = (id: string) => {
     dropLoad(id);
     removeData(id);
-    updateChart(w.id, (c) => ({ ...c, series: c.series.filter((x) => x.id !== id) }));
+    updateChart(w.id, (c) => {
+      const series = c.series.filter((x) => x.id !== id);
+      return { ...c, series, axes: followAxisLabels(c.series, series, c.axes, w.type, instrument) };
+    });
     setEditing(null);
   };
 
@@ -430,7 +422,7 @@ function SeriesChart({
         ? (['angular', 'radial'] as const)
         : (chart.axes.map((a) => a.location) as [AxisLocation, AxisLocation]);
   // Series of a second quantity go on a right-hand y axis; see planYAxes.
-  const yLocation = TWIN_AXIS_TYPES.includes(w.type) ? ay : undefined;
+  const yLocation = twinAxisLocation(w.type, chart.axes);
   const plan = useMemo(
     () => planYAxes(chart.series, yLocation, instrument),
     [chart.series, yLocation, instrument],
