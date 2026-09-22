@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import type { DdvClient } from '../protocol/client';
 import { loadInstrument } from '../protocol/commands';
-import { parseInstrument, type Instrument } from '../model/schema';
+import { canonicalInstrumentName, parseInstrument, type Instrument } from '../model/schema';
 import {
   DEFAULT_WINDOW_SIZE,
   NEW_WINDOW_OFFSET,
@@ -33,6 +33,12 @@ export interface GlobalQuery {
 interface WorkspaceState {
   instrument: Instrument | null;
   instrumentStatus: InstrumentStatus;
+  /** Name of the instrument being loaded, so the drop-down can show it before the reply lands. */
+  pendingInstrument: string | null;
+  /** The server file this workspace was loaded from or last saved to. */
+  currentFile: readonly string[] | null;
+  /** Fingerprint of the workspace when it was last loaded or saved; null before either. */
+  savedFingerprint: string | null;
   windows: Record<string, WindowMeta>;
   nextZ: number;
   globalQuery: GlobalQuery;
@@ -47,13 +53,22 @@ interface WorkspaceState {
   updateFocal(id: string, patch: Partial<FocalPlaneConfig>): void;
   setGlobalQuery(patch: Partial<GlobalQuery>): void;
   clearWorkspace(): void;
+  /** Record that the workspace as it stands is what `file` holds (null: loaded from somewhere without a name). */
+  markSaved(file: readonly string[] | null): void;
+  /** The workspace's file was renamed or moved on the server, or deleted (null: no longer saved anywhere). */
+  retargetFile(file: readonly string[] | null): void;
   replaceWindows(windows: Record<string, WindowMeta>, globalQuery?: GlobalQuery): void;
   /** Serialise the workspace in the Flutter app's format. */
   saveWorkspace(pretty?: boolean): string;
-  /** Load a saved workspace, switching instrument first if the file names a different one. Returns skipped windows. */
+  /**
+   * Load a saved workspace, switching instrument first if the file names a different one. Returns skipped windows.
+   * `beforeReplace` runs once the file is known to be good, in the same breath as
+   * the windows being swapped: the place to drop the old workspace's data.
+   */
   loadWorkspace(
     client: DdvClient,
     text: string,
+    beforeReplace?: () => void,
   ): Promise<readonly { id: string; reason: string }[]>;
 }
 
@@ -68,21 +83,50 @@ export function bumpIdCounterPast(id: string): void {
   if (Number.isFinite(n) && n >= idCounter) idCounter = n;
 }
 
+/**
+ * A stable digest of what a save would hold, for the unsaved-changes marker.
+ * The saved JSON itself won't do: writing it mints fresh query-node ids. Stacking
+ * order is left out so that clicking a window does not count as a change.
+ */
+export function workspaceFingerprint(
+  s: Pick<WorkspaceState, 'windows' | 'globalQuery' | 'instrument'>,
+): string {
+  return JSON.stringify([
+    s.instrument?.name ?? null,
+    s.globalQuery,
+    Object.values(s.windows).map((w) => ({ ...w, z: 0 })),
+  ]);
+}
+
 export const useWorkspace = create<WorkspaceState>((set, get) => ({
   instrument: null,
   instrumentStatus: 'none',
+  pendingInstrument: null,
+  currentFile: null,
+  savedFingerprint: null,
   windows: {},
   nextZ: 1,
   globalQuery: { nights: NO_NIGHTS, dayObs: null, query: null, detectorId: null },
 
   async selectInstrument(client, name) {
     if (!name) {
-      set({ instrument: null, instrumentStatus: 'none' });
+      set({ instrument: null, instrumentStatus: 'none', pendingInstrument: null });
       return;
     }
-    set({ instrumentStatus: 'loading' });
-    const info = await loadInstrument(client, name);
-    set({ instrument: parseInstrument(info), instrumentStatus: 'ready' });
+    const canonical = canonicalInstrumentName(name);
+    set({ instrumentStatus: 'loading', pendingInstrument: canonical });
+    try {
+      const info = await loadInstrument(client, canonical);
+      set({
+        instrument: parseInstrument(info),
+        instrumentStatus: 'ready',
+        pendingInstrument: null,
+      });
+    } catch (e) {
+      // Keep whatever was loaded before rather than spinning forever.
+      set({ instrumentStatus: get().instrument ? 'ready' : 'none', pendingInstrument: null });
+      throw e;
+    }
   },
 
   addWindow(type) {
@@ -168,8 +212,18 @@ export const useWorkspace = create<WorkspaceState>((set, get) => ({
     });
   },
 
+  markSaved(file) {
+    set({ currentFile: file, savedFingerprint: workspaceFingerprint(get()) });
+  },
+
+  retargetFile(file) {
+    set(file ? { currentFile: file } : { currentFile: null, savedFingerprint: null });
+  },
+
   clearWorkspace() {
     set({
+      currentFile: null,
+      savedFingerprint: null,
       windows: {},
       globalQuery: { nights: NO_NIGHTS, dayObs: null, query: null, detectorId: null },
     });
@@ -192,13 +246,20 @@ export const useWorkspace = create<WorkspaceState>((set, get) => ({
     );
   },
 
-  async loadWorkspace(client, text) {
+  async loadWorkspace(client, text, beforeReplace) {
     // Peek at the instrument first so fields can be validated against its schema.
     const peek = parseWorkspace(text, null, SERIES_COLORS);
-    if (peek.instrumentName && peek.instrumentName !== get().instrument?.name) {
+    if (
+      peek.instrumentName &&
+      canonicalInstrumentName(peek.instrumentName) !== get().instrument?.name
+    ) {
+      // As when the instrument is changed by hand: windows left open would
+      // query the new instrument for the old one's columns.
+      get().clearWorkspace();
       await get().selectInstrument(client, peek.instrumentName);
     }
     const file = parseWorkspace(text, get().instrument, SERIES_COLORS);
+    beforeReplace?.();
     const nights: NightSelection =
       file.nights ??
       (file.dayObs ? { kind: 'single', night: Number(file.dayObs.replace(/-/g, '')) } : NO_NIGHTS);

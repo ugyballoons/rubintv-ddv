@@ -18,6 +18,9 @@ const PATHS: Record<string, string> = {
   next: 'M6 12h12M12 6l6 6-6 6',
   column: 'M4 6h16M4 12h16M4 18h16',
   night: 'M20 14A8 8 0 1 1 10 4a6 6 0 0 0 10 10z',
+  file: 'M6 3h8l4 4v14H6zM14 3v4h4',
+  chevron: 'M9 6l6 6-6 6',
+  up: 'M12 19V5M6 11l6-6 6 6',
 };
 
 /** Inline stroke icons, sized to the text; the accessible name comes from the button. */

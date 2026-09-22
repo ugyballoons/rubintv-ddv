@@ -63,7 +63,9 @@ export const useSeriesData = create<SeriesDataState>((set) => ({
     });
   },
   clear() {
-    set({ entries: {} });
+    // A series that survives the clear (the same workspace loaded again) has the
+    // same request as before, so nothing but the nonce tells its loader to fetch.
+    set((s) => ({ entries: {}, reloadAll: s.reloadAll + 1 }));
   },
 }));
 

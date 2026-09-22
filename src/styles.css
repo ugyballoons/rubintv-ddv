@@ -157,6 +157,7 @@ select,
 input[type='date'],
 input[type='number'],
 input[type='text'],
+input[type='search'],
 input:not([type]) {
   font: inherit;
   font-size: 13px;
@@ -277,9 +278,32 @@ input[type='checkbox'] {
   background: none;
   padding: 0 10px;
 }
-.menu li button:hover {
+.menu li button:hover:not(:disabled) {
   background: var(--accent-soft);
   color: var(--accent-ink);
+}
+.menu li button {
+  align-items: center;
+  gap: 16px;
+  white-space: nowrap;
+}
+.menu li button .hint {
+  margin-left: auto;
+  font-size: 12px;
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.menu li[role='separator'] {
+  height: 1px;
+  margin: 4px 6px;
+  background: var(--line);
+}
+.menu li.heading {
+  padding: 8px 10px 2px;
+  font-size: 11.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
 }
 
 /* ---------- windows ---------- */
@@ -705,13 +729,145 @@ input[type='checkbox'] {
 
 /* file dialog */
 .file-dialog {
-  min-width: 580px;
+  width: 660px;
+}
+.file-location {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+.file-filter {
+  width: 130px;
+  height: 26px;
+  font-size: 12.5px;
+}
+.file-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 13px 2px 36px;
+}
+.file-head .sort {
+  border: none;
+  background: none;
+  height: auto;
+  padding: 2px 0;
+  font-size: 11.5px;
+  color: var(--ink-2);
+  text-align: left;
+}
+.file-head .sort[aria-pressed='true'] {
+  color: var(--accent-ink);
+}
+.file-head .sort.name {
+  flex: 1;
+}
+/* Columns shared by the header and the rows; the last 13px is the folder chevron. */
+.file-head .sort.size,
+.file-row .size {
+  flex: none;
+  width: 64px;
+  text-align: right;
+}
+.file-head .sort.modified,
+.file-row .modified {
+  flex: none;
+  width: 92px;
+  text-align: right;
+}
+/* buttons are flex boxes, so the headers need this to sit over their right-aligned columns */
+.file-head .sort.size,
+.file-head .sort.modified {
+  justify-content: flex-end;
+}
+.file-head::after {
+  content: '';
+  flex: none;
+  width: 13px;
+}
+.file-row .size,
+.file-row .modified {
+  font-size: 12px;
+  white-space: nowrap;
+}
+.file-row .instrument-tag {
+  flex: none;
+  font-size: 11px;
+  padding: 0 6px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  color: var(--ink-2);
+}
+.file-row .instrument-tag.differs {
+  border-color: #c9a227;
+  color: #8a6d0f;
+  background: #fbf4dc;
+}
+.file-row .name {
+  flex: 1;
+  min-width: 0;
+}
+.file-row.dragging {
+  opacity: 0.45;
+}
+.file-row[data-drop='over'],
+.file-location [data-drop='over'] {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+  background: var(--accent-soft);
+}
+.file-about {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 12px;
+  min-height: 34px;
+  padding: 6px 2px 0;
+  font-size: 12.5px;
+}
+.file-about strong {
+  color: var(--ink);
+  font-weight: 600;
+}
+.file-about .warn {
+  flex-basis: 100%;
+}
+.file-ask .question {
+  margin-right: auto;
+  font-size: 13px;
+}
+.confirm-dialog {
+  min-width: 360px;
+  max-width: 460px;
+}
+.confirm-dialog p {
+  margin: 0;
+  font-size: 13.5px;
+  color: var(--ink-2);
+}
+.toolbar .current-file {
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--ink);
+}
+.toolbar .current-file .dirty {
+  color: var(--accent);
+}
+.file-status {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+  white-space: nowrap;
 }
 .breadcrumbs {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 2px;
-  margin-bottom: 8px;
   font-size: 13px;
 }
 .breadcrumbs button {
@@ -728,6 +884,19 @@ input[type='checkbox'] {
   overflow: auto;
   padding: 4px;
   font-size: 13px;
+  outline: none;
+  transition: opacity 0.15s;
+}
+.file-list:focus-visible {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent-soft);
+}
+/* The old listing stays readable while the next one is on its way. */
+.file-list[aria-busy='true'] {
+  opacity: 0.55;
+}
+.file-list .empty {
+  padding: 5px 8px;
 }
 .file-row {
   display: flex;
@@ -738,12 +907,47 @@ input[type='checkbox'] {
   cursor: default;
   user-select: none;
 }
+.file-row svg {
+  flex: none;
+  color: var(--ink-2);
+}
+.file-row .name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* Folders: tinted filled icon, heavier name, and a chevron saying they open. */
+.file-row.dir > svg {
+  color: var(--accent);
+  fill: var(--accent-soft);
+}
+.file-row.dir .name {
+  font-weight: 600;
+}
+.file-row .open-hint {
+  flex: none;
+  width: 13px;
+  display: inline-flex;
+  opacity: 0.6;
+}
+/* Files that are not workspaces can still be loaded, but recede. */
+.file-row.other .name,
+.file-row.other > svg {
+  opacity: 0.55;
+}
+.file-row input {
+  flex: 1;
+  min-width: 0;
+}
 .file-row:hover {
   background: var(--bg-2);
 }
 .file-row.selected {
   background: var(--accent-soft);
   color: var(--accent-ink);
+}
+.file-row.dir.selected > svg {
+  fill: var(--panel);
 }
 .file-buttons {
   flex-wrap: wrap;
@@ -828,6 +1032,7 @@ input[type='checkbox'] {
   border-radius: 12px;
   font-size: 12.5px;
 }
+.toolbar .workspace-message,
 .toolbar .loading-instrument {
   display: inline-flex;
   align-items: center;

@@ -103,3 +103,12 @@ export const KNOWN_INSTRUMENTS = [
   'LATISS',
   'LSSTComCamSim',
 ] as const;
+
+/**
+ * The drop-down's spelling of an instrument name. Flutter workspaces wrote
+ * "LsstCam" and the worker matches names case-insensitively, echoing back
+ * whatever it was sent; names the drop-down doesn't know pass through.
+ */
+export function canonicalInstrumentName(name: string): string {
+  return KNOWN_INSTRUMENTS.find((k) => k.toLowerCase() === name.toLowerCase()) ?? name;
+}

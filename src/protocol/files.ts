@@ -7,10 +7,18 @@ import type { DdvClient } from './client';
  */
 export type RemotePath = readonly string[];
 
+/** Modification time in seconds since the epoch; size in bytes, for files. */
+export interface EntryDetails {
+  readonly modified?: number;
+  readonly size?: number;
+}
+
 export interface DirectoryListing {
   readonly path: RemotePath;
   readonly files: readonly string[];
   readonly directories: readonly string[];
+  /** Keyed by name. Absent from workers that predate it, so everything using it is optional. */
+  readonly details?: Readonly<Record<string, EntryDetails>>;
 }
 
 async function call<T extends object>(

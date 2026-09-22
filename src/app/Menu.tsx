@@ -1,6 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
 import { Icon } from './Icon';
 
+export type MenuItem =
+  | { label: string; onClick(): void; disabled?: boolean; hint?: string; title?: string }
+  | { separator: true }
+  | { heading: string };
+
 export function Menu({
   label,
   icon,
@@ -9,7 +14,7 @@ export function Menu({
 }: {
   label: string;
   icon?: string;
-  items: { label: string; onClick(): void }[];
+  items: MenuItem[];
   disabled?: boolean;
 }) {
   const [open, setOpen] = useState(false);
@@ -40,19 +45,30 @@ export function Menu({
       </button>
       {open && (
         <ul role="menu">
-          {items.map((it) => (
-            <li key={it.label} role="none">
-              <button
-                role="menuitem"
-                onClick={() => {
-                  setOpen(false);
-                  it.onClick();
-                }}
-              >
-                {it.label}
-              </button>
-            </li>
-          ))}
+          {items.map((it, i) =>
+            'separator' in it ? (
+              <li key={i} role="separator" />
+            ) : 'heading' in it ? (
+              <li key={i} role="presentation" className="heading meta">
+                {it.heading}
+              </li>
+            ) : (
+              <li key={i} role="none">
+                <button
+                  role="menuitem"
+                  disabled={it.disabled}
+                  title={it.title}
+                  onClick={() => {
+                    setOpen(false);
+                    it.onClick();
+                  }}
+                >
+                  <span className="label">{it.label}</span>
+                  {it.hint && <span className="hint meta">{it.hint}</span>}
+                </button>
+              </li>
+            ),
+          )}
         </ul>
       )}
     </div>

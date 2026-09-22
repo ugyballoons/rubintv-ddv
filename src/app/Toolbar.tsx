@@ -39,6 +39,7 @@ export function Toolbar({ client }: { client: DdvClient }) {
   const connection = useConnection((s) => s.status);
   const instrument = useWorkspace((s) => s.instrument);
   const instrumentStatus = useWorkspace((s) => s.instrumentStatus);
+  const pendingInstrument = useWorkspace((s) => s.pendingInstrument);
   const selectInstrument = useWorkspace((s) => s.selectInstrument);
   const windows = useWorkspace((s) => s.windows);
   const addWindow = useWorkspace((s) => s.addWindow);
@@ -54,6 +55,13 @@ export function Toolbar({ client }: { client: DdvClient }) {
   const requestReloadAll = useSeriesData((s) => s.requestReloadAll);
   const loadingInstrument = instrumentStatus === 'loading';
   const hasWindows = Object.keys(windows).length > 0;
+  // The drop-down follows the instrument however it was chosen, including by a
+  // loaded workspace file, and shows the one on its way while it loads.
+  const shownInstrument = pendingInstrument ?? instrument?.name ?? '';
+  const instrumentOptions: readonly string[] =
+    shownInstrument && !(KNOWN_INSTRUMENTS as readonly string[]).includes(shownInstrument)
+      ? [...KNOWN_INSTRUMENTS, shownInstrument]
+      : KNOWN_INSTRUMENTS;
   const detectorLabel =
     detectorId === null
       ? ''
@@ -70,7 +78,11 @@ export function Toolbar({ client }: { client: DdvClient }) {
     clearWorkspace();
     clearData();
     clearSelection();
-    await selectInstrument(client, name);
+    try {
+      await selectInstrument(client, name);
+    } catch (e) {
+      flash(`Could not load ${name}: ${(e as Error).message}`);
+    }
   };
 
   return (
@@ -81,12 +93,12 @@ export function Toolbar({ client }: { client: DdvClient }) {
       </span>
       <select
         aria-label="Instrument"
-        value={instrument?.name ?? ''}
+        value={shownInstrument}
         disabled={connection !== 'open' || instrumentStatus === 'loading'}
         onChange={(e) => void changeInstrument(e.target.value || null)}
       >
         <option value="">Select instrument…</option>
-        {KNOWN_INSTRUMENTS.map((name) => (
+        {instrumentOptions.map((name) => (
           <option key={name} value={name}>
             {name}
           </option>
@@ -94,7 +106,8 @@ export function Toolbar({ client }: { client: DdvClient }) {
       </select>
       {loadingInstrument && (
         <span className="meta loading-instrument" role="status">
-          <span className="spinner" /> Loading schema and geometry…
+          <span className="spinner" /> Loading {pendingInstrument ?? 'instrument'} schema and
+          geometry…
         </span>
       )}
       <span className="sep" />
